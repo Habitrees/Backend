@@ -41,13 +41,15 @@ from .serializers import (
     RegisterVerifyOTPSerializer,
     OTPSendResponseSerializer,
     RegisterSuccessResponseSerializer,
+    LoginSerializer,
+    LoginSuccessResponseSerializer,
 )
 
 from .services import (
     send_otp_sms,
     OTPProviderError
 )
-
+from .throttles import LoginRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -428,4 +430,67 @@ class RegisterVerifyOTPView(APIView):
                 "refresh": str(refresh),
             },
             status=status.HTTP_201_CREATED
+        )
+class LoginView(APIView):
+
+    permission_classes = [AllowAny]
+
+    throttle_classes = [LoginRateThrottle]
+
+    @extend_schema(
+        tags=["Authentication"],
+
+        summary="User Login",
+
+        description=(
+            "Authenticate user using phone number "
+            "and password, then return JWT tokens."
+        ),
+
+        request=LoginSerializer,
+
+        responses={
+            200: LoginSuccessResponseSerializer,
+
+            400: OpenApiResponse(
+                description="Invalid credentials."
+            ),
+
+            429: OpenApiResponse(
+                description="Too many login attempts."
+            ),
+        },
+    )
+
+    def post(self, request):
+
+        serializer = LoginSerializer(
+            data=request.data,
+            context={"request": request}
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.validated_data["user"]
+
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "detail": "ورود با موفقیت انجام شد.",
+
+                "user": {
+                    "id": user.id,
+                    "phone": user.phone,
+                    "username": user.username,
+                    "full_name": user.full_name,
+                },
+
+                "access": str(refresh.access_token),
+
+                "refresh": str(refresh),
+            },
+
+            status=status.HTTP_200_OK
         )

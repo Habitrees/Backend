@@ -7,6 +7,7 @@ from rest_framework import serializers
 from .models import User
 from .phone_utils import normalize_phone
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.contrib.auth import authenticate
 
 
 class RegisterSendOTPSerializer(serializers.Serializer):
@@ -129,6 +130,51 @@ class RegisterVerifyOTPSerializer(serializers.Serializer):
             )
 
         return value
+class LoginSerializer(serializers.Serializer):
+
+    phone = serializers.CharField(
+        max_length=32
+    )
+
+    password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        style={"input_type": "password"}
+    )
+
+    def validate_phone(self, value):
+
+        try:
+            return normalize_phone(value)
+
+        except ValueError:
+            raise serializers.ValidationError(
+                "شماره موبایل معتبر نیست."
+            )
+
+    def validate(self, attrs):
+
+        user = authenticate(
+            request=self.context.get("request"),
+            phone=attrs["phone"],
+            password=attrs["password"]
+        )
+
+        # Reject invalid credentials, inactive users,
+        # and users whose phone has not been verified.
+        if (
+            user is None
+            or not user.is_active
+            or user.phone_verified_at is None
+        ):
+
+            raise serializers.ValidationError({
+                "detail": "شماره موبایل یا رمز عبور صحیح نیست."
+            })
+
+        attrs["user"] = user
+
+        return attrs
 
 class OTPSendResponseSerializer(serializers.Serializer):
 
@@ -155,6 +201,26 @@ class RegisterSuccessResponseSerializer(serializers.Serializer):
     detail = serializers.CharField()
 
     user = RegisterUserResponseSerializer()
+
+    access = serializers.CharField()
+
+    refresh = serializers.CharField()
+class LoginUserResponseSerializer(serializers.Serializer):
+
+    id = serializers.IntegerField()
+
+    phone = serializers.CharField()
+
+    username = serializers.CharField()
+
+    full_name = serializers.CharField()
+
+
+class LoginSuccessResponseSerializer(serializers.Serializer):
+
+    detail = serializers.CharField()
+
+    user = LoginUserResponseSerializer()
 
     access = serializers.CharField()
 

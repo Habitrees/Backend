@@ -4,7 +4,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
     RegisterSendOTPView,
-    RegisterVerifyOTPView
+    RegisterVerifyOTPView,
+    LoginView
     )
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
@@ -34,6 +35,11 @@ urlpatterns = [
     "token/blacklist/",
     TokenBlacklistView.as_view(),
     name="token-blacklist"
+    ),
+    path(
+    "login/",
+    LoginView.as_view(),
+    name="login",
     ),
 
 ]
