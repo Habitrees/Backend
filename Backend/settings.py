@@ -215,6 +215,7 @@ REST_FRAMEWORK = {
 
     # Login protection
     "login": "5/minute",
+    "password_reset_send": "5/hour",
     },
 
 

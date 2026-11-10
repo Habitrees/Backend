@@ -225,3 +225,70 @@ class LoginSuccessResponseSerializer(serializers.Serializer):
     access = serializers.CharField()
 
     refresh = serializers.CharField()
+
+
+
+class PasswordResetSendOTPSerializer(serializers.Serializer):
+
+    phone = serializers.CharField(max_length=32)
+
+    def validate_phone(self, value):
+
+        try:
+            return normalize_phone(value)
+
+        except ValueError:
+            raise serializers.ValidationError(
+                "شماره موبایل معتبر نیست."
+            )
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+
+    phone = serializers.CharField(max_length=32)
+
+    code = serializers.RegexField(
+        regex=r"^[0-9]{6}$",
+        error_messages={
+            "invalid": "کد باید ۶ رقم باشد."
+        }
+    )
+
+    new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        style={"input_type": "password"}
+    )
+
+    confirm_new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        style={"input_type": "password"}
+    )
+
+    def validate_phone(self, value):
+
+        try:
+            return normalize_phone(value)
+
+        except ValueError:
+            raise serializers.ValidationError(
+                "شماره موبایل معتبر نیست."
+            )
+
+    def validate(self, attrs):
+
+        if attrs["new_password"] != attrs["confirm_new_password"]:
+
+            raise serializers.ValidationError({
+                "confirm_new_password": (
+                    "تکرار رمز عبور با رمز جدید مطابقت ندارد."
+                )
+            })
+
+        return attrs
+
+
+class PasswordResetConfirmResponseSerializer(serializers.Serializer):
+
+    detail = serializers.CharField()

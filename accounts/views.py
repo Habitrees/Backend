@@ -43,6 +43,8 @@ from .serializers import (
     RegisterSuccessResponseSerializer,
     LoginSerializer,
     LoginSuccessResponseSerializer,
+    PasswordResetSendOTPSerializer,
+
 )
 
 from .services import (
@@ -50,6 +52,7 @@ from .services import (
     OTPProviderError
 )
 from .throttles import LoginRateThrottle
+from .throttles import PasswordResetSendOTPThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -492,5 +495,158 @@ class LoginView(APIView):
                 "refresh": str(refresh),
             },
 
+            status=status.HTTP_200_OK
+        )
+
+
+
+class PasswordResetSendOTPView(APIView):
+
+    permission_classes = [AllowAny]
+
+    throttle_classes = [PasswordResetSendOTPThrottle]
+
+    @extend_schema(
+        tags=["Authentication"],
+
+        summary="Send Password Reset OTP",
+
+        description=(
+            "Request a password reset OTP. "
+            "A generic response is returned regardless "
+            "of account eligibility."
+        ),
+
+        request=PasswordResetSendOTPSerializer,
+
+        responses={
+            200: OTPSendResponseSerializer,
+
+            400: OpenApiResponse(
+                description="Invalid phone number."
+            ),
+
+            429: OpenApiResponse(
+                description="Too many requests."
+            ),
+        },
+    )
+
+    def post(self, request):
+
+        serializer = PasswordResetSendOTPSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        phone = serializer.validated_data["phone"]
+
+        now = timezone.now()
+
+        # Generic response to prevent account enumeration
+        response_data = {
+            "detail": (
+                "در صورت وجود حساب فعال با شماره تأییدشده، "
+                "کد بازیابی ارسال خواهد شد."
+            ),
+            "expires_in": settings.OTP_TTL_SECONDS,
+            "resend_after": settings.OTP_RESEND_COOLDOWN_SECONDS,
+        }
+
+        challenge = None
+        code = None
+
+        # Lock the user row to prevent concurrent OTP creation
+        with transaction.atomic():
+
+            user = User.objects.select_for_update().filter(
+                phone=phone,
+                is_active=True,
+                phone_verified_at__isnull=False,
+            ).first()
+
+            # Do not reveal whether the account exists
+            if user is None:
+
+                return Response(
+                    response_data,
+                    status=status.HTTP_200_OK
+                )
+
+            # Check resend cooldown
+            recent_challenge = OTPChallenge.objects.filter(
+                user=user,
+                purpose=OTPChallenge.Purpose.PASSWORD_RESET,
+                consumed_at__isnull=True,
+                expires_at__gt=now,
+                created_at__gte=now - timedelta(
+                    seconds=settings.OTP_RESEND_COOLDOWN_SECONDS
+                ),
+            ).order_by("-created_at").first()
+
+            if recent_challenge:
+
+                return Response(
+                    response_data,
+                    status=status.HTTP_200_OK
+                )
+
+            # Invalidate previous active reset codes
+            OTPChallenge.objects.filter(
+                user=user,
+                purpose=OTPChallenge.Purpose.PASSWORD_RESET,
+                consumed_at__isnull=True,
+                expires_at__gt=now,
+            ).update(
+                expires_at=now
+            )
+
+            # Generate six-digit OTP
+            code = f"{secrets.randbelow(1000000):06d}"
+
+            # Save hashed OTP
+            challenge = OTPChallenge.objects.create(
+
+                user=user,
+
+                phone=phone,
+
+                purpose=OTPChallenge.Purpose.PASSWORD_RESET,
+
+                code_hash=make_password(code),
+
+                expires_at=now + timedelta(
+                    seconds=settings.OTP_TTL_SECONDS
+                ),
+            )
+
+        # Send SMS outside the database transaction
+        try:
+
+            send_otp_sms(
+                phone,
+                code
+            )
+
+        except OTPProviderError:
+
+            OTPChallenge.objects.filter(
+                id=challenge.id,
+                consumed_at__isnull=True,
+            ).update(
+                expires_at=timezone.now()
+            )
+
+            logger.exception(
+                "Password reset OTP provider failed. "
+                "Challenge ID: %s",
+                challenge.id
+            )
+
+            # Keep the public response generic
+
+        return Response(
+            response_data,
             status=status.HTTP_200_OK
         )
