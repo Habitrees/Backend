@@ -216,6 +216,7 @@ REST_FRAMEWORK = {
     # Login protection
     "login": "5/minute",
     "password_reset_send": "5/hour",
+    "password_reset": "5/minute",
     },
 
 
@@ -277,3 +278,11 @@ OTP_MAX_ATTEMPTS = int(
 DEFAULT_PHONE_REGION = os.getenv("DEFAULT_PHONE_REGION", "IR")
 
 TERMS_VERSION = os.getenv("TERMS_VERSION", "v1")
+
+
+PASSWORD_RESET_TOKEN_TTL_SECONDS = int(
+    os.getenv(
+        "PASSWORD_RESET_TOKEN_TTL_SECONDS",
+        "300"
+    )
+)
