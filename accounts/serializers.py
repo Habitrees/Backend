@@ -25,6 +25,7 @@ class RegisterSendOTPSerializer(serializers.Serializer):
             )
 
 
+
 class RegisterVerifyOTPSerializer(serializers.Serializer):
 
     phone = serializers.CharField(max_length=32)
@@ -34,6 +35,30 @@ class RegisterVerifyOTPSerializer(serializers.Serializer):
         error_messages={
             "invalid": "کد باید ۶ رقم باشد."
         }
+    )
+
+    def validate_phone(self, value):
+        try:
+            return normalize_phone(value)
+        except ValueError:
+            raise serializers.ValidationError(
+                "شماره موبایل معتبر نیست."
+            )
+
+
+class RegisterVerifyOTPResponseSerializer(serializers.Serializer):
+
+    detail = serializers.CharField()
+
+    registration_token = serializers.CharField()
+
+    expires_in = serializers.IntegerField()
+
+
+class RegisterCompleteSerializer(serializers.Serializer):
+
+    registration_token = serializers.CharField(
+        write_only=True
     )
 
     username = serializers.CharField(
@@ -47,7 +72,14 @@ class RegisterVerifyOTPSerializer(serializers.Serializer):
 
     password = serializers.CharField(
         write_only=True,
-        trim_whitespace=False
+        trim_whitespace=False,
+        style={"input_type": "password"}
+    )
+
+    confirm_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        style={"input_type": "password"}
     )
 
     timezone = serializers.CharField(
@@ -66,22 +98,11 @@ class RegisterVerifyOTPSerializer(serializers.Serializer):
         required=True
     )
 
-    def validate_phone(self, value):
-
-        try:
-            return normalize_phone(value)
-
-        except ValueError:
-            raise serializers.ValidationError(
-                "شماره موبایل معتبر نیست."
-            )
-
     def validate_username(self, value):
 
         value = value.strip()
 
         if User.objects.filter(username=value).exists():
-
             raise serializers.ValidationError(
                 "این نام کاربری قبلاً انتخاب شده است."
             )
@@ -101,22 +122,11 @@ class RegisterVerifyOTPSerializer(serializers.Serializer):
 
     def validate(self, attrs):
 
-        candidate_user = User(
-            phone=attrs["phone"],
-            username=attrs["username"],
-            full_name=attrs["full_name"],
-        )
-
-        try:
-            django_validate_password(
-                attrs["password"],
-                user=candidate_user,
-            )
-
-        except DjangoValidationError as exc:
-
+        if attrs["password"] != attrs["confirm_password"]:
             raise serializers.ValidationError({
-                "password": exc.messages
+                "confirm_password": (
+                    "تکرار رمز عبور با رمز جدید مطابقت ندارد."
+                )
             })
 
         return attrs
@@ -124,12 +134,12 @@ class RegisterVerifyOTPSerializer(serializers.Serializer):
     def validate_terms_accepted(self, value):
 
         if not value:
-
             raise serializers.ValidationError(
                 "پذیرش قوانین برای ثبت‌نام الزامی است."
             )
 
         return value
+
 class LoginSerializer(serializers.Serializer):
 
     phone = serializers.CharField(

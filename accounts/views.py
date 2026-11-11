@@ -37,6 +37,8 @@ from .serializers import (
     RegisterSendOTPSerializer,
     RegisterSuccessResponseSerializer,
     RegisterVerifyOTPSerializer,
+    RegisterVerifyOTPResponseSerializer,
+    RegisterCompleteSerializer,
 )
 from .services import OTPProviderError, send_otp_sms
 from .throttles import LoginRateThrottle
@@ -49,6 +51,11 @@ PASSWORD_RESET_TOKEN_TTL_SECONDS = getattr(
     settings,
     "PASSWORD_RESET_TOKEN_TTL_SECONDS",
     300,
+)
+REGISTRATION_SIGNING_SALT = "habitree.registration"
+
+REGISTRATION_TOKEN_TTL_SECONDS = int(
+    getattr(settings, "REGISTRATION_TOKEN_TTL_SECONDS", 600)
 )
 
 
@@ -155,33 +162,47 @@ class RegisterSendOTPView(APIView):
         )
 
 
+
 class RegisterVerifyOTPView(APIView):
+
     permission_classes = [AllowAny]
     throttle_classes = [AnonRateThrottle]
 
     @extend_schema(
         tags=["Authentication"],
-        summary="Verify OTP and Register User",
-        description="Verify OTP and create a new Habitree account.",
+        summary="Verify Registration OTP",
+        description=(
+            "Verify the registration OTP without creating a user. "
+            "Returns a short-lived registration token."
+        ),
         request=RegisterVerifyOTPSerializer,
         responses={
-            201: RegisterSuccessResponseSerializer,
-            400: OpenApiResponse(description="Invalid or expired OTP."),
+            200: RegisterVerifyOTPResponseSerializer,
+            400: OpenApiResponse(
+                description="Invalid or expired OTP."
+            ),
             409: OpenApiResponse(
-                description="Phone number or username already exists."
+                description="Phone number already registered."
             ),
         },
     )
     def post(self, request):
-        serializer = RegisterVerifyOTPSerializer(data=request.data)
+
+        serializer = RegisterVerifyOTPSerializer(
+            data=request.data
+        )
+
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data
+
         error = None
-        user = None
+        registration_token = None
 
         try:
+
             with transaction.atomic():
+
                 challenge = (
                     OTPChallenge.objects.select_for_update()
                     .filter(
@@ -196,46 +217,274 @@ class RegisterVerifyOTPView(APIView):
                 now = timezone.now()
 
                 if challenge is None:
-                    error = "کد تأیید معتبر نیست یا قبلاً استفاده شده است."
+
+                    error = (
+                        "کد تأیید معتبر نیست یا قبلاً استفاده شده است."
+                    )
+
+                elif challenge.verified_at is not None:
+
+                    error = "این کد قبلاً تأیید شده است."
 
                 elif challenge.attempt_count >= settings.OTP_MAX_ATTEMPTS:
+
                     if challenge.expires_at > now:
+
                         challenge.expires_at = now
-                        challenge.save(update_fields=["expires_at"])
+
+                        challenge.save(
+                            update_fields=["expires_at"]
+                        )
+
                     error = "تعداد تلاش‌های مجاز تمام شده است."
 
                 elif challenge.expires_at <= now:
+
                     error = "کد تأیید منقضی شده است."
 
                 else:
+
                     challenge.attempt_count += 1
 
-                    if not check_password(data["code"], challenge.code_hash):
-                        update_fields = ["attempt_count"]
+                    if not check_password(
+                        data["code"],
+                        challenge.code_hash
+                    ):
+
+                        fields = ["attempt_count"]
 
                         if challenge.attempt_count >= settings.OTP_MAX_ATTEMPTS:
+
                             challenge.expires_at = now
-                            update_fields.append("expires_at")
+
+                            fields.append("expires_at")
+
                             error = "تعداد تلاش‌های مجاز تمام شده است."
+
                         else:
+
                             error = "کد واردشده صحیح نیست."
 
-                        challenge.save(update_fields=update_fields)
-
-                    elif User.objects.filter(phone=data["phone"]).exists():
-                        challenge.expires_at = now
                         challenge.save(
-                            update_fields=["attempt_count", "expires_at"]
+                            update_fields=fields
                         )
+
+                    elif User.objects.filter(
+                        phone=data["phone"]
+                    ).exists():
+
+                        challenge.expires_at = now
+
+                        challenge.save(
+                            update_fields=[
+                                "attempt_count",
+                                "expires_at",
+                            ]
+                        )
+
                         error = "این شماره قبلاً ثبت شده است."
 
                     else:
+
+                        challenge.verified_at = now
+
+                        challenge.expires_at = (
+                            now + timedelta(
+                                seconds=REGISTRATION_TOKEN_TTL_SECONDS
+                            )
+                        )
+
+                        challenge.save(
+                            update_fields=[
+                                "attempt_count",
+                                "verified_at",
+                                "expires_at",
+                            ]
+                        )
+
+                        registration_token = signing.dumps(
+                            {
+                                "challenge_id": str(challenge.pk),
+                                "phone": challenge.phone,
+                            },
+                            salt=REGISTRATION_SIGNING_SALT,
+                            compress=True,
+                        )
+
+        except IntegrityError:
+
+            logger.exception(
+                "Registration OTP verification integrity error."
+            )
+
+            return Response(
+                {"detail": "خطا در تأیید شماره موبایل."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        if error:
+
+            return Response(
+                {"detail": error},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "detail": "شماره موبایل با موفقیت تأیید شد.",
+                "registration_token": registration_token,
+                "expires_in": REGISTRATION_TOKEN_TTL_SECONDS,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+
+
+class RegisterCompleteView(APIView):
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [AnonRateThrottle]
+
+    @extend_schema(
+        tags=["Authentication"],
+        summary="Complete Registration",
+        description=(
+            "Create a new account using a valid registration token "
+            "issued after successful OTP verification."
+        ),
+        request=RegisterCompleteSerializer,
+        responses={
+            201: RegisterSuccessResponseSerializer,
+            400: OpenApiResponse(
+                description="Invalid registration token or password."
+            ),
+            409: OpenApiResponse(
+                description="Phone number or username already exists."
+            ),
+        },
+    )
+    def post(self, request):
+
+        serializer = RegisterCompleteSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+
+        # -----------------------------------------
+        # 1. Validate registration token
+        # -----------------------------------------
+
+        try:
+
+            payload = signing.loads(
+                data["registration_token"],
+                salt=REGISTRATION_SIGNING_SALT,
+                max_age=REGISTRATION_TOKEN_TTL_SECONDS,
+            )
+
+            if not isinstance(payload, dict):
+                raise ValueError("Invalid token payload.")
+
+            challenge_id = payload["challenge_id"]
+            phone = payload["phone"]
+
+            if not isinstance(phone, str):
+                raise ValueError("Invalid phone.")
+
+        except (
+            signing.BadSignature,
+            KeyError,
+            TypeError,
+            ValueError,
+        ):
+
+            return Response(
+                {
+                    "detail": (
+                        "توکن ثبت‌نام نامعتبر است یا منقضی شده است."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        error = None
+        conflict = False
+        password_errors = None
+        user = None
+
+        # -----------------------------------------
+        # 2. Lock challenge and create user
+        # -----------------------------------------
+
+        try:
+
+            with transaction.atomic():
+
+                challenge = (
+                    OTPChallenge.objects.select_for_update()
+                    .filter(
+                        pk=challenge_id,
+                        phone=phone,
+                        purpose=OTPChallenge.Purpose.REGISTER,
+                        verified_at__isnull=False,
+                        consumed_at__isnull=True,
+                    )
+                    .first()
+                )
+
+                now = timezone.now()
+
+                if challenge is None:
+
+                    error = (
+                        "درخواست ثبت‌نام معتبر نیست "
+                        "یا قبلاً استفاده شده است."
+                    )
+
+                elif challenge.expires_at <= now:
+
+                    error = "مهلت تکمیل ثبت‌نام به پایان رسیده است."
+
+                elif User.objects.filter(
+                    phone=challenge.phone
+                ).exists():
+
+                    conflict = True
+
+                else:
+
+                    # Validate password against user attributes.
+                    candidate_user = User(
+                        phone=challenge.phone,
+                        username=data["username"],
+                        full_name=data["full_name"],
+                    )
+
+                    try:
+
+                        validate_password(
+                            data["password"],
+                            user=candidate_user,
+                        )
+
+                    except DjangoValidationError as exc:
+
+                        password_errors = exc.messages
+
+                    else:
+
+                        # Create user only after OTP verification.
                         user = User.objects.create_user(
-                            phone=data["phone"],
+                            phone=challenge.phone,
                             username=data["username"],
                             full_name=data["full_name"],
                             password=data["password"],
-                            phone_verified_at=now,
+                            phone_verified_at=challenge.verified_at,
                             timezone=data["timezone"],
                             locale=data["locale"],
                             terms_version=settings.TERMS_VERSION,
@@ -243,20 +492,23 @@ class RegisterVerifyOTPView(APIView):
                             is_active=True,
                         )
 
+                        # Bind and consume OTP challenge.
                         challenge.user = user
-                        challenge.verified_at = now
                         challenge.consumed_at = now
+
                         challenge.save(
                             update_fields=[
-                                "attempt_count",
                                 "user",
-                                "verified_at",
                                 "consumed_at",
                             ]
                         )
 
         except IntegrityError:
-            logger.warning("Signup integrity conflict.", exc_info=True)
+
+            logger.exception(
+                "Registration completion integrity conflict."
+            )
+
             return Response(
                 {
                     "detail": (
@@ -266,18 +518,49 @@ class RegisterVerifyOTPView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
+        # -----------------------------------------
+        # 3. Handle validation errors
+        # -----------------------------------------
+
+        if conflict:
+
+            return Response(
+                {
+                    "detail": (
+                        "این شماره موبایل قبلاً ثبت شده است."
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
         if error:
+
             return Response(
                 {"detail": error},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if password_errors:
+
+            return Response(
+                {"password": password_errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if user is None:
-            logger.error("Signup completed without a user object.")
+
+            logger.error(
+                "Registration completion failed without user."
+            )
+
             return Response(
                 {"detail": "خطای داخلی هنگام ثبت‌نام."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+        # -----------------------------------------
+        # 4. Issue JWT tokens
+        # -----------------------------------------
 
         refresh = RefreshToken.for_user(user)
 
