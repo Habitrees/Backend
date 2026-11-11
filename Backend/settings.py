@@ -188,6 +188,21 @@ CORS_ALLOWED_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+
+
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        ",".join(CORS_ALLOWED_ORIGINS),
+    ).split(",")
+    if origin.strip()
+]
+
+
+
 #extra
 AUTH_USER_MODEL = "accounts.User"
 
@@ -241,6 +256,51 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
+
+
+# Authentication Cookie Configuration
+
+AUTH_REFRESH_COOKIE_NAME = os.getenv(
+    "AUTH_REFRESH_COOKIE_NAME",
+    "habitree_refresh",
+)
+
+AUTH_REFRESH_COOKIE_HTTPONLY = True
+
+AUTH_REFRESH_COOKIE_SECURE = (
+    os.getenv(
+        "AUTH_REFRESH_COOKIE_SECURE",
+        "0" if DEBUG else "1",
+    ).lower() in {"1", "true", "yes", "on"}
+)
+
+AUTH_REFRESH_COOKIE_SAMESITE = os.getenv(
+    "AUTH_REFRESH_COOKIE_SAMESITE",
+    "Lax",
+)
+
+AUTH_REFRESH_COOKIE_PATH = os.getenv(
+    "AUTH_REFRESH_COOKIE_PATH",
+    "/api/auth/",
+)
+
+AUTH_REFRESH_COOKIE_DOMAIN = (
+    os.getenv("AUTH_REFRESH_COOKIE_DOMAIN") or None
+)
+
+AUTH_REFRESH_COOKIE_MAX_AGE = int(
+    os.getenv(
+        "AUTH_REFRESH_COOKIE_MAX_AGE",
+        str(int(SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds())),
+    )
+)
+
+# CSRF Cookie Configuration
+
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = AUTH_REFRESH_COOKIE_SECURE
+CSRF_COOKIE_SAMESITE = AUTH_REFRESH_COOKIE_SAMESITE
+
 
 
 # OTP Configuration

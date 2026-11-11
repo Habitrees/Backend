@@ -52,6 +52,20 @@ PASSWORD_RESET_TOKEN_TTL_SECONDS = getattr(
 )
 
 
+def set_refresh_cookie(response, refresh):
+    response.set_cookie(
+        key=settings.AUTH_REFRESH_COOKIE_NAME,
+        value=str(refresh),
+        max_age=settings.AUTH_REFRESH_COOKIE_MAX_AGE,
+        httponly=settings.AUTH_REFRESH_COOKIE_HTTPONLY,
+        secure=settings.AUTH_REFRESH_COOKIE_SECURE,
+        samesite=settings.AUTH_REFRESH_COOKIE_SAMESITE,
+        path=settings.AUTH_REFRESH_COOKIE_PATH,
+        domain=settings.AUTH_REFRESH_COOKIE_DOMAIN,
+    )
+    return response
+
+
 class RegisterSendOTPView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [AnonRateThrottle]
@@ -267,7 +281,7 @@ class RegisterVerifyOTPView(APIView):
 
         refresh = RefreshToken.for_user(user)
 
-        return Response(
+        response = Response(
             {
                 "detail": "ثبت‌نام با موفقیت انجام شد.",
                 "user": {
@@ -277,10 +291,11 @@ class RegisterVerifyOTPView(APIView):
                     "full_name": user.full_name,
                 },
                 "access": str(refresh.access_token),
-                "refresh": str(refresh),
             },
             status=status.HTTP_201_CREATED,
         )
+
+        return set_refresh_cookie(response, refresh)
 
 
 class LoginView(APIView):
@@ -309,9 +324,10 @@ class LoginView(APIView):
         serializer.is_valid(raise_exception=True)
 
         user = serializer.validated_data["user"]
+
         refresh = RefreshToken.for_user(user)
 
-        return Response(
+        response = Response(
             {
                 "detail": "ورود با موفقیت انجام شد.",
                 "user": {
@@ -321,10 +337,11 @@ class LoginView(APIView):
                     "full_name": user.full_name,
                 },
                 "access": str(refresh.access_token),
-                "refresh": str(refresh),
             },
             status=status.HTTP_200_OK,
         )
+
+        return set_refresh_cookie(response, refresh)
 
 
 class PasswordResetSendOTPView(APIView):

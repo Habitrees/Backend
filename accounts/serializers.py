@@ -204,7 +204,7 @@ class RegisterSuccessResponseSerializer(serializers.Serializer):
 
     access = serializers.CharField()
 
-    refresh = serializers.CharField()
+
 class LoginUserResponseSerializer(serializers.Serializer):
 
     id = serializers.IntegerField()
@@ -224,7 +224,6 @@ class LoginSuccessResponseSerializer(serializers.Serializer):
 
     access = serializers.CharField()
 
-    refresh = serializers.CharField()
 
 
 
