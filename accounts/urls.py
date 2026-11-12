@@ -1,10 +1,6 @@
 
 from django.urls import path
 
-from rest_framework_simplejwt.views import (
-    TokenRefreshView,
-    TokenBlacklistView,
-)
 
 from .views import (
     RegisterSendOTPView,
@@ -14,6 +10,9 @@ from .views import (
     PasswordResetSendOTPView,
     PasswordResetVerifyOTPView,
     PasswordResetConfirmView,
+    CsrfTokenView,
+    CookieTokenRefreshView,
+    CookieTokenBlacklistView,
 )
 
 urlpatterns = [
@@ -40,14 +39,24 @@ urlpatterns = [
         LoginView.as_view(),
         name="login",
     ),
+    # CSRF Token
+    path(
+        "csrf/",
+        CsrfTokenView.as_view(),
+        name="csrf-token",
+    ),
+
+    # Refresh Access Token
     path(
         "token/refresh/",
-        TokenRefreshView.as_view(),
+        CookieTokenRefreshView.as_view(),
         name="token-refresh",
     ),
+
+    # Logout
     path(
         "token/blacklist/",
-        TokenBlacklistView.as_view(),
+        CookieTokenBlacklistView.as_view(),
         name="token-blacklist",
     ),
 

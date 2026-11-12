@@ -43,6 +43,12 @@ from .serializers import (
 from .services import OTPProviderError, send_otp_sms
 from .throttles import LoginRateThrottle
 
+from django.middleware.csrf import get_token
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect
+
+from rest_framework_simplejwt.exceptions import TokenError
+
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +85,136 @@ def set_refresh_cookie(response, refresh, remember_me=True):
     )
 
     return response
+
+
+def clear_refresh_cookie(response):
+
+    response.delete_cookie(
+        key=settings.AUTH_REFRESH_COOKIE_NAME,
+        path=settings.AUTH_REFRESH_COOKIE_PATH,
+        domain=settings.AUTH_REFRESH_COOKIE_DOMAIN,
+        samesite=settings.AUTH_REFRESH_COOKIE_SAMESITE,
+    )
+
+    return response
+
+
+class CsrfTokenView(APIView):
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+
+        return Response(
+            {
+                "csrfToken": get_token(request._request)
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class CookieTokenRefreshView(APIView):
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [AnonRateThrottle]
+
+    def post(self, request):
+
+        raw_refresh = request.COOKIES.get(
+            settings.AUTH_REFRESH_COOKIE_NAME
+        )
+
+        if not raw_refresh:
+
+            response = Response(
+                {"detail": "نشست کاربری معتبر نیست."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+            return clear_refresh_cookie(response)
+
+        try:
+
+            refresh = RefreshToken(raw_refresh)
+
+            user_id = refresh.get("user_id")
+
+            user = User.objects.filter(
+                pk=user_id,
+                is_active=True,
+            ).first()
+
+            if user is None:
+                raise TokenError("User is inactive or missing.")
+
+            access_token = str(refresh.access_token)
+
+        except (
+            TokenError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ):
+
+            response = Response(
+                {
+                    "detail": (
+                        "نشست شما منقضی شده است. "
+                        "لطفاً مجدداً وارد شوید."
+                    )
+                },
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+            return clear_refresh_cookie(response)
+
+        return Response(
+            {
+                "access": access_token,
+                "detail": "توکن دسترسی با موفقیت تمدید شد.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class CookieTokenBlacklistView(APIView):
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+
+        raw_refresh = request.COOKIES.get(
+            settings.AUTH_REFRESH_COOKIE_NAME
+        )
+
+        if raw_refresh:
+
+            try:
+
+                refresh = RefreshToken(raw_refresh)
+                refresh.blacklist()
+
+            except TokenError:
+                pass
+
+        response = Response(
+            {
+                "detail": "با موفقیت از حساب خارج شدید."
+            },
+            status=status.HTTP_200_OK,
+        )
+
+        return clear_refresh_cookie(response)
+
+
+
+
 
 class RegisterSendOTPView(APIView):
     permission_classes = [AllowAny]
@@ -347,7 +483,7 @@ class RegisterVerifyOTPView(APIView):
 
 
 
-
+@method_decorator(csrf_protect, name="dispatch")
 class RegisterCompleteView(APIView):
 
     permission_classes = [AllowAny]
@@ -588,6 +724,7 @@ class RegisterCompleteView(APIView):
         return set_refresh_cookie(response, refresh)
 
 
+@method_decorator(csrf_protect, name="dispatch")
 class LoginView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [LoginRateThrottle]
