@@ -141,6 +141,10 @@ class RegisterCompleteSerializer(serializers.Serializer):
         return value
 
 class LoginSerializer(serializers.Serializer):
+    remember_me = serializers.BooleanField(
+        required=False,
+        default=False
+    )
 
     phone = serializers.CharField(
         max_length=32

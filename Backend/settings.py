@@ -258,6 +258,16 @@ SIMPLE_JWT = {
 }
 
 
+# Refresh Token Lifetime
+
+AUTH_REFRESH_REMEMBER_ME_LIFETIME = (
+    SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
+)
+
+AUTH_REFRESH_SESSION_LIFETIME = timedelta(
+    hours=12
+)
+
 # Authentication Cookie Configuration
 
 AUTH_REFRESH_COOKIE_NAME = os.getenv(

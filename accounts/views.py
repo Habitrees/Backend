@@ -59,19 +59,26 @@ REGISTRATION_TOKEN_TTL_SECONDS = int(
 )
 
 
-def set_refresh_cookie(response, refresh):
+def set_refresh_cookie(response, refresh, remember_me=True):
+
+    max_age = (
+        settings.AUTH_REFRESH_COOKIE_MAX_AGE
+        if remember_me
+        else None
+    )
+
     response.set_cookie(
         key=settings.AUTH_REFRESH_COOKIE_NAME,
         value=str(refresh),
-        max_age=settings.AUTH_REFRESH_COOKIE_MAX_AGE,
+        max_age=max_age,
         httponly=settings.AUTH_REFRESH_COOKIE_HTTPONLY,
         secure=settings.AUTH_REFRESH_COOKIE_SECURE,
         samesite=settings.AUTH_REFRESH_COOKIE_SAMESITE,
         path=settings.AUTH_REFRESH_COOKIE_PATH,
         domain=settings.AUTH_REFRESH_COOKIE_DOMAIN,
     )
-    return response
 
+    return response
 
 class RegisterSendOTPView(APIView):
     permission_classes = [AllowAny]
@@ -608,7 +615,19 @@ class LoginView(APIView):
 
         user = serializer.validated_data["user"]
 
+        remember_me = serializer.validated_data["remember_me"]
+
         refresh = RefreshToken.for_user(user)
+
+        refresh_lifetime = (
+            settings.AUTH_REFRESH_REMEMBER_ME_LIFETIME
+            if remember_me
+            else settings.AUTH_REFRESH_SESSION_LIFETIME
+        )
+
+        refresh.set_exp(
+            lifetime=refresh_lifetime
+        )
 
         response = Response(
             {
@@ -624,7 +643,11 @@ class LoginView(APIView):
             status=status.HTTP_200_OK,
         )
 
-        return set_refresh_cookie(response, refresh)
+        return set_refresh_cookie(
+            response,
+            refresh,
+            remember_me=remember_me
+        )
 
 
 class PasswordResetSendOTPView(APIView):
