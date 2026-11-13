@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 import os
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -47,6 +48,7 @@ ALLOWED_HOSTS = [
 # Application definition
 
 INSTALLED_APPS = [
+    "rest_framework_simplejwt.token_blacklist",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -56,6 +58,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "drf_spectacular",
+    "accounts",
 ]
 
 MIDDLEWARE = [
@@ -115,10 +118,26 @@ DATABASES = {
 
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+
+    # Keep old password hashes compatible
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+    "django.contrib.auth.hashers.ScryptPasswordHasher",
+]
 
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "OPTIONS": {
+            "user_attributes": (
+                "username",
+                "full_name",
+                "phone",
+            ),
+        },
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
@@ -169,3 +188,171 @@ CORS_ALLOWED_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+
+
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CSRF_TRUSTED_ORIGINS",
+        ",".join(CORS_ALLOWED_ORIGINS),
+    ).split(",")
+    if origin.strip()
+]
+
+
+
+#extra
+AUTH_USER_MODEL = "accounts.User"
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+
+    "DEFAULT_THROTTLE_RATES": {
+    "anon": "100/hour",
+    "user": "1000/hour",
+
+    # Login protection
+    "login": "5/minute",
+    "password_reset_send": "5/hour",
+    "password_reset": "5/minute",
+    },
+
+
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Habitree API",
+
+    "DESCRIPTION": """
+    API documentation for Habitree application.
+
+    Habit tracking, authentication,
+    challenges, garden and user management.
+    """,
+
+    "VERSION": "1.0.0",
+
+    "SERVE_INCLUDE_SCHEMA": False,
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}
+
+
+# Refresh Token Lifetime
+
+AUTH_REFRESH_REMEMBER_ME_LIFETIME = (
+    SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"]
+)
+
+AUTH_REFRESH_SESSION_LIFETIME = timedelta(
+    hours=12
+)
+
+# Authentication Cookie Configuration
+
+AUTH_REFRESH_COOKIE_NAME = os.getenv(
+    "AUTH_REFRESH_COOKIE_NAME",
+    "habitree_refresh",
+)
+
+AUTH_REFRESH_COOKIE_HTTPONLY = True
+
+AUTH_REFRESH_COOKIE_SECURE = (
+    os.getenv(
+        "AUTH_REFRESH_COOKIE_SECURE",
+        "0" if DEBUG else "1",
+    ).lower() in {"1", "true", "yes", "on"}
+)
+
+AUTH_REFRESH_COOKIE_SAMESITE = os.getenv(
+    "AUTH_REFRESH_COOKIE_SAMESITE",
+    "Lax",
+)
+
+AUTH_REFRESH_COOKIE_PATH = os.getenv(
+    "AUTH_REFRESH_COOKIE_PATH",
+    "/api/auth/",
+)
+
+AUTH_REFRESH_COOKIE_DOMAIN = (
+    os.getenv("AUTH_REFRESH_COOKIE_DOMAIN") or None
+)
+
+AUTH_REFRESH_COOKIE_MAX_AGE = int(
+    os.getenv(
+        "AUTH_REFRESH_COOKIE_MAX_AGE",
+        str(int(SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds())),
+    )
+)
+
+# CSRF Cookie Configuration
+
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = AUTH_REFRESH_COOKIE_SECURE
+CSRF_COOKIE_SAMESITE = AUTH_REFRESH_COOKIE_SAMESITE
+
+
+
+# OTP Configuration
+
+OTP_PROVIDER_SEND_URL = os.getenv("OTP_PROVIDER_SEND_URL", "")
+
+OTP_PROVIDER_TOKEN = os.getenv("OTP_PROVIDER_TOKEN", "")
+
+OTP_PROVIDER_PAYLOAD_FIELD = os.getenv(
+    "OTP_PROVIDER_PAYLOAD_FIELD",
+    "code",
+)
+
+OTP_MESSAGE_TEMPLATE = os.getenv(
+    "OTP_MESSAGE_TEMPLATE",
+    "کد تأیید Habitree: {code}",
+)
+
+OTP_PROVIDER_TIMEOUT_SECONDS = int(
+    os.getenv("OTP_PROVIDER_TIMEOUT_SECONDS", "10")
+)
+
+OTP_TTL_SECONDS = int(
+    os.getenv("OTP_TTL_SECONDS", "300")
+)
+
+OTP_RESEND_COOLDOWN_SECONDS = int(
+    os.getenv("OTP_RESEND_COOLDOWN_SECONDS", "60")
+)
+
+OTP_MAX_ATTEMPTS = int(
+    os.getenv("OTP_MAX_ATTEMPTS", "5")
+)
+
+DEFAULT_PHONE_REGION = os.getenv("DEFAULT_PHONE_REGION", "IR")
+
+TERMS_VERSION = os.getenv("TERMS_VERSION", "v1")
+
+
+PASSWORD_RESET_TOKEN_TTL_SECONDS = int(
+    os.getenv(
+        "PASSWORD_RESET_TOKEN_TTL_SECONDS",
+        "300"
+    )
+)
