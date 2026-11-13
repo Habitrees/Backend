@@ -76,7 +76,7 @@ jobs:
         run: python manage.py migrate --noinput
 
       - name: Run tests
-        run: python manage.py test
+        run: python -m pytest -v --ds=Backend.settings
 
       - name: Create temporary environment for Docker Compose
         run: |
