@@ -41,7 +41,11 @@ from .serializers import (
     RegisterCompleteSerializer,
 )
 from .services import OTPProviderError, send_otp_sms
-from .throttles import LoginRateThrottle
+from .throttles import (
+    LoginRateThrottle,
+    PasswordResetSendOTPThrottle,
+    PasswordResetRateThrottle,
+)
 
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
@@ -727,6 +731,7 @@ class RegisterCompleteView(APIView):
 @method_decorator(csrf_protect, name="dispatch")
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
     throttle_classes = [LoginRateThrottle]
 
     @extend_schema(
@@ -790,10 +795,7 @@ class LoginView(APIView):
 class PasswordResetSendOTPView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
-    # Reuse the existing 5/minute anonymous login throttle.
-    # This avoids depending on a throttle class not present in the
-    # currently supplied accounts/throttles.py.
-    throttle_classes = [LoginRateThrottle]
+    throttle_classes = [PasswordResetSendOTPThrottle]
 
     @extend_schema(
         tags=["Authentication"],
@@ -899,7 +901,7 @@ class PasswordResetSendOTPView(APIView):
 class PasswordResetVerifyOTPView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
-    throttle_classes = [LoginRateThrottle]
+    throttle_classes = [PasswordResetRateThrottle]
 
     @extend_schema(
         tags=["Authentication"],
@@ -1035,7 +1037,7 @@ class PasswordResetVerifyOTPView(APIView):
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
-    throttle_classes = [LoginRateThrottle]
+    throttle_classes = [PasswordResetRateThrottle]
 
     @extend_schema(
         tags=["Authentication"],
