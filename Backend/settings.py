@@ -40,7 +40,6 @@ if not SECRET_KEY:
 #
 # ALLOWED_HOSTS = []
 
-DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 
 ALLOWED_HOSTS = [
     host.strip()
