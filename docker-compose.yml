@@ -2,12 +2,9 @@
 services:
   db:
     image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: unless-stopped
     env_file:
-      - .env
+      - production.env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,13 +19,11 @@ services:
 
   backend:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
+    restart: unless-stopped
     env_file:
-      - .env
-    volumes:
-      - .:/app
+      - production.env
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy

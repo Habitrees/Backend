@@ -14,3 +14,11 @@ htmlcov
 
 # IDE settings
 .vscode/
+
+# Environment files
+.env.*
+*.env
+*.env.*
+
+# Generated static files
+staticfiles/

@@ -11,6 +11,8 @@ RUN python -m pip install --no-cache-dir --default-timeout=120 --retries=10 -r r
 
 COPY . .
 
+RUN python manage.py collectstatic --noinput
+
 EXPOSE 8000
 
 CMD ["gunicorn", "Backend.wsgi:application", "--bind", "0.0.0.0:8000"]

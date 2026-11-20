@@ -29,3 +29,4 @@ djangorestframework-simplejwt==5.5.1
 requests>=2.32,<3
 phonenumbers>=9,<10
 argon2-cffi==25.1.0
+whitenoise>=6.9,<7

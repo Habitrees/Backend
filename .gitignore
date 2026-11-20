@@ -517,3 +517,11 @@ $RECYCLE.BIN/
 
 # PostgreSQL database backups
 *.dump
+
+
+# Django collected static files
+/staticfiles/
+
+# Production environment secrets
+production.env
+.env.production
