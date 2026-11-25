@@ -155,7 +155,11 @@ class HabitLog(models.Model):
     success = models.BooleanField(
         default=False
     )
-
+    recovered_at = models.DateTimeField(
+    null=True,
+    blank=True,
+    editable=False,
+    )
     created_at = models.DateTimeField(
         auto_now_add=True
     )

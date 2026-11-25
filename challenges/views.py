@@ -21,11 +21,20 @@ from .services import (
     create_challenge,
     archive_challenge,
     record_habit_log,
+    get_streak_data,
+    recover_habit_log,
 )
 
 from .schedule import (
     get_local_today,
     get_period,
+)
+from .serializers import (
+    ChallengeSerializer,
+    HabitLogInputSerializer,
+    HabitLogSerializer,
+    ScheduleSerializer,
+    StreakSerializer,
 )
 @extend_schema(tags=["Challenges"])
 class ChallengeViewSet(viewsets.ModelViewSet):
@@ -208,4 +217,92 @@ class ChallengeViewSet(viewsets.ModelViewSet):
             *args,
             **kwargs,
         )
+    
+    @extend_schema(
+        summary="Get Challenge Streak",
+        description=(
+            "Returns current streak, best streak "
+            "and recovery availability."
+        ),
+        responses={
+            200: StreakSerializer,
+            404: dict,
+        },
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="streak",
+    )
+    def streak(self, request, pk=None):
+
+        challenge = self.get_object()
+
+        data = get_streak_data(challenge)
+
+        serializer = StreakSerializer(data)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )
+    
+    @extend_schema(
+        summary="Recover Missed Habit Log",
+        description=(
+            "Recover yesterday's missed habit "
+            "in daily flexible challenges."
+        ),
+        request=HabitLogInputSerializer,
+        responses={
+            200: HabitLogSerializer,
+            400: dict,
+            404: dict,
+        },
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path=r"recover/(?P<log_date>\d{4}-\d{2}-\d{2})",
+    )
+    def recover_log(
+        self,
+        request,
+        pk=None,
+        log_date=None,
+    ):
+
+        challenge = self.get_object()
+
+        try:
+
+            period_start = date.fromisoformat(
+                log_date
+            )
+
+        except (ValueError, TypeError):
+
+            raise ValidationError({
+                "date": "تاریخ معتبر نیست."
+            })
+
+        serializer = HabitLogInputSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        log = recover_habit_log(
+            challenge=challenge,
+            period_start=period_start,
+            **serializer.validated_data,
+        )
+
+        return Response(
+            HabitLogSerializer(log).data,
+            status=status.HTTP_200_OK,
+        )
+    
 

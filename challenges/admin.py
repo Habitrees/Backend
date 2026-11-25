@@ -68,6 +68,7 @@ class HabitLogAdmin(admin.ModelAdmin):
         "success",
         "created_at",
         "updated_at",
+        "recovered_at",
     )
 
     def has_add_permission(self, request):

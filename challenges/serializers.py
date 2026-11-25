@@ -257,6 +257,7 @@ class HabitLogSerializer(serializers.ModelSerializer):
             "value",
             "performed",
             "success",
+            "recovered_at",
             "created_at",
             "updated_at",
         ]
@@ -281,3 +282,21 @@ class ScheduleSerializer(serializers.Serializer):
     current_period_end = serializers.DateField(
         allow_null=True
     )
+
+class StreakSerializer(serializers.Serializer):
+
+    current_streak = serializers.IntegerField()
+
+    best_streak = serializers.IntegerField()
+
+    consecutive_failures = serializers.IntegerField()
+
+    current_period_success = serializers.BooleanField()
+
+    recovery_pending = serializers.BooleanField()
+
+    recoverable_date = serializers.DateField(
+        allow_null=True
+    )
+
+    can_recover = serializers.BooleanField()

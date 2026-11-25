@@ -12,6 +12,10 @@ from .schedule import (
     get_local_today,
     get_period,
 )
+from datetime import timedelta
+from django.utils import timezone
+
+from .streak import calculate_streak
 
 @transaction.atomic
 def create_challenge(*, user, data):
@@ -133,7 +137,22 @@ def record_habit_log(
         value=value,
         performed=performed,
     )
+    if not success and challenge.mode == Challenge.Mode.FLEXIBLE:
 
+        yesterday = today - timedelta(days=1)
+
+        recovered_yesterday = HabitLog.objects.filter(
+            challenge=challenge,
+            period_start=yesterday,
+            recovered_at__isnull=False,
+        ).exists()
+
+        if recovered_yesterday:
+
+            raise ValidationError({
+                "detail":
+                    "پس از جبران روز گذشته، عملکرد امروز نمی‌تواند ناموفق شود."
+            })
     log, created = HabitLog.objects.update_or_create(
 
         challenge=challenge,
@@ -149,3 +168,130 @@ def record_habit_log(
     )
 
     return log, created
+
+def get_streak_data(challenge):
+
+    today = get_local_today(challenge)
+
+    successful_periods = HabitLog.objects.filter(
+        challenge=challenge,
+        success=True,
+    ).values_list(
+        "period_start",
+        flat=True,
+    )
+
+    return calculate_streak(
+        challenge=challenge,
+        successful_periods=successful_periods,
+        today=today,
+    )
+
+@transaction.atomic
+def recover_habit_log(
+    *,
+    challenge,
+    period_start,
+    value=None,
+    performed=None,
+):
+
+    challenge = (
+        Challenge.objects
+        .select_for_update()
+        .filter(
+            pk=challenge.pk,
+            owner_id=challenge.owner_id,
+            archived=False,
+        )
+        .first()
+    )
+
+    if challenge is None:
+
+        raise NotFound(
+            "چالش موردنظر یافت نشد."
+        )
+
+    if (
+        challenge.mode != Challenge.Mode.FLEXIBLE
+        or challenge.frequency != Challenge.Frequency.DAILY
+    ):
+
+        raise ValidationError({
+            "mode":
+                "جبران فقط برای چالش روزانه Flexible مجاز است."
+        })
+
+    today = get_local_today(challenge)
+
+    yesterday = today - timedelta(days=1)
+
+    if not (
+        challenge.start_date <= today <= challenge.end_date
+    ):
+
+        raise ValidationError({
+            "date":
+                "چالش فعال نیست."
+        })
+
+    if (
+        period_start != yesterday
+        or yesterday < challenge.start_date
+    ):
+
+        raise ValidationError({
+            "date":
+                "فقط جبران عملکرد روز گذشته مجاز است."
+        })
+
+    if HabitLog.objects.filter(
+        challenge=challenge,
+        period_start=yesterday,
+        success=True,
+    ).exists():
+
+        raise ValidationError({
+            "date":
+                "عملکرد روز گذشته قبلاً موفق ثبت شده است."
+        })
+
+    today_success = HabitLog.objects.filter(
+        challenge=challenge,
+        period_start=today,
+        success=True,
+    ).exists()
+
+    if not today_success:
+
+        raise ValidationError({
+            "detail":
+                "ابتدا باید هدف امروز را با موفقیت انجام دهید."
+        })
+
+    success = calculate_success(
+        challenge,
+        value=value,
+        performed=performed,
+    )
+
+    if not success:
+
+        raise ValidationError({
+            "detail":
+                "عملکرد جبرانی باید به هدف تعیین‌شده برسد."
+        })
+
+    log, created = HabitLog.objects.update_or_create(
+        challenge=challenge,
+        period_start=yesterday,
+        defaults={
+            "value": value,
+            "performed": performed,
+            "success": True,
+            "recovered_at": timezone.now(),
+        },
+    )
+
+    return log
