@@ -17,6 +17,7 @@ urlpatterns = [
 
     # Authentication APIs
     path("api/auth/", include("accounts.urls")),
+    path("api/", include("challenges.urls")),
 
     # OpenAPI Schema
     path(
