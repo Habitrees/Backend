@@ -300,3 +300,52 @@ class StreakSerializer(serializers.Serializer):
     )
 
     can_recover = serializers.BooleanField()
+
+class PlantSerializer(serializers.Serializer):
+
+    challenge_id = serializers.IntegerField()
+
+    challenge_title = serializers.CharField()
+
+    stage = serializers.IntegerField(
+        min_value=1,
+        max_value=5,
+    )
+
+    stage_key = serializers.ChoiceField(
+        choices=[
+            "seed",
+            "sprout",
+            "small",
+            "growing",
+            "mature",
+        ]
+    )
+
+    status = serializers.ChoiceField(
+        choices=[
+            "upcoming",
+            "growing",
+            "completed",
+            "ended_unsuccessful",
+            "archived",
+        ]
+    )
+
+    total_periods = serializers.IntegerField()
+
+    successful_periods = serializers.IntegerField()
+
+    progress_percent = serializers.FloatField()
+
+    completed = serializers.BooleanField()
+
+class GardenSerializer(serializers.Serializer):
+
+    total_growing = serializers.IntegerField()
+
+    total_completed = serializers.IntegerField()
+
+    growing = PlantSerializer(many=True)
+
+    completed = PlantSerializer(many=True)

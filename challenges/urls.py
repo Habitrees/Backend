@@ -1,8 +1,8 @@
 
 from rest_framework.routers import DefaultRouter
 
-from .views import ChallengeViewSet
-
+from .views import ChallengeViewSet, GardenView
+from django.urls import path
 
 router = DefaultRouter()
 
@@ -12,4 +12,10 @@ router.register(
     basename="challenge",
 )
 
-urlpatterns = router.urls
+urlpatterns = [
+    path(
+        "garden/",
+        GardenView.as_view(),
+        name="garden",
+    ),
+] + router.urls

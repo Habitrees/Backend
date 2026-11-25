@@ -23,6 +23,8 @@ from .services import (
     record_habit_log,
     get_streak_data,
     recover_habit_log,
+    get_plant_data,
+    get_garden_data,
 )
 
 from .schedule import (
@@ -35,7 +37,11 @@ from .serializers import (
     HabitLogSerializer,
     ScheduleSerializer,
     StreakSerializer,
+    PlantSerializer,
+    GardenSerializer,
 )
+from rest_framework.views import APIView
+
 @extend_schema(tags=["Challenges"])
 class ChallengeViewSet(viewsets.ModelViewSet):
 
@@ -302,6 +308,59 @@ class ChallengeViewSet(viewsets.ModelViewSet):
 
         return Response(
             HabitLogSerializer(log).data,
+            status=status.HTTP_200_OK,
+        )
+    
+    @extend_schema(
+        summary="Get Challenge Plant",
+        description=(
+            "Returns plant growth stage "
+            "and challenge progress."
+        ),
+        responses={
+            200: PlantSerializer,
+            404: dict,
+        },
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="plant",
+    )
+    def plant(self, request, pk=None):
+
+        challenge = self.get_object()
+
+        data = get_plant_data(challenge)
+
+        return Response(
+            PlantSerializer(data).data,
+            status=status.HTTP_200_OK,
+        )
+
+@extend_schema(tags=["Garden"])
+class GardenView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Get User Garden",
+        description=(
+            "Returns growing and completed "
+            "plants belonging to the current user."
+        ),
+        responses={
+            200: GardenSerializer,
+        },
+    )
+    def get(self, request):
+
+        data = get_garden_data(
+            user=request.user
+        )
+
+        return Response(
+            GardenSerializer(data).data,
             status=status.HTTP_200_OK,
         )
     

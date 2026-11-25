@@ -17,6 +17,9 @@ from django.utils import timezone
 
 from .streak import calculate_streak
 
+from django.db.models import Prefetch
+from .progress import build_plant_data
+
 @transaction.atomic
 def create_challenge(*, user, data):
 
@@ -295,3 +298,66 @@ def recover_habit_log(
     )
 
     return log
+
+
+def get_plant_data(challenge):
+
+    successful_periods = HabitLog.objects.filter(
+        challenge=challenge,
+        success=True,
+    ).values_list(
+        "period_start",
+        flat=True,
+    )
+
+    return build_plant_data(
+        challenge=challenge,
+        successful_periods=successful_periods,
+        today=get_local_today(challenge),
+    )
+
+def get_garden_data(user):
+
+    challenges = Challenge.objects.filter(
+        owner=user,
+    ).prefetch_related(
+        Prefetch(
+            "logs",
+            queryset=HabitLog.objects.filter(
+                success=True,
+            ).only(
+                "challenge_id",
+                "period_start",
+            ),
+            to_attr="successful_logs",
+        )
+    )
+
+    growing = []
+    completed = []
+
+    for challenge in challenges:
+
+        plant = build_plant_data(
+            challenge=challenge,
+            successful_periods=[
+                log.period_start
+                for log in challenge.successful_logs
+            ],
+            today=get_local_today(challenge),
+        )
+
+        if plant["completed"]:
+
+            completed.append(plant)
+
+        elif plant["status"] == "growing":
+
+            growing.append(plant)
+
+    return {
+        "total_growing": len(growing),
+        "total_completed": len(completed),
+        "growing": growing,
+        "completed": completed,
+    }
