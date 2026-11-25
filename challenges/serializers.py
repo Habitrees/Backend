@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Challenge
+from .models import Challenge, HabitLog
 
 
 class ChallengeSerializer(serializers.ModelSerializer):
@@ -227,3 +227,57 @@ class ChallengeSerializer(serializers.ModelSerializer):
                 })
 
         return attrs
+
+
+class HabitLogInputSerializer(serializers.Serializer):
+
+    value = serializers.IntegerField(
+        min_value=0,
+        max_value=2147483647,
+        required=False,
+        allow_null=True,
+    )
+
+    performed = serializers.BooleanField(
+        required=False,
+        allow_null=True,
+    )
+
+
+class HabitLogSerializer(serializers.ModelSerializer):
+
+    class Meta:
+
+        model = HabitLog
+
+        fields = [
+            "id",
+            "challenge",
+            "period_start",
+            "value",
+            "performed",
+            "success",
+            "created_at",
+            "updated_at",
+        ]
+
+        read_only_fields = fields
+
+
+class ScheduleSerializer(serializers.Serializer):
+
+    frequency = serializers.CharField()
+
+    today = serializers.DateField()
+
+    start_date = serializers.DateField()
+
+    end_date = serializers.DateField()
+
+    current_period_start = serializers.DateField(
+        allow_null=True
+    )
+
+    current_period_end = serializers.DateField(
+        allow_null=True
+    )

@@ -131,3 +131,72 @@ class Challenge(models.Model):
     def __str__(self):
         return self.title
 
+
+class HabitLog(models.Model):
+
+    challenge = models.ForeignKey(
+        Challenge,
+        on_delete=models.CASCADE,
+        related_name="logs",
+    )
+
+    period_start = models.DateField()
+
+    value = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+
+    performed = models.BooleanField(
+        null=True,
+        blank=True,
+    )
+
+    success = models.BooleanField(
+        default=False
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True
+    )
+
+    class Meta:
+
+        ordering = ["-period_start"]
+
+        constraints = [
+
+            models.UniqueConstraint(
+                fields=[
+                    "challenge",
+                    "period_start",
+                ],
+                name="unique_challenge_period_log",
+            ),
+
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        value__isnull=False,
+                        performed__isnull=True,
+                    )
+                    |
+                    models.Q(
+                        value__isnull=True,
+                        performed__isnull=False,
+                    )
+                ),
+                name="habitlog_valid_value_type",
+            ),
+        ]
+
+    def __str__(self):
+
+        return (
+            f"{self.challenge.title} - "
+            f"{self.period_start}"
+        )

@@ -1,20 +1,32 @@
-from django.shortcuts import render
+from datetime import date
 
-# Create your views here.
-
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from drf_spectacular.utils import extend_schema
 
 from .models import Challenge
-from .serializers import ChallengeSerializer
+
+from .serializers import (
+    ChallengeSerializer,
+    HabitLogInputSerializer,
+    HabitLogSerializer,
+    ScheduleSerializer,
+)
+
 from .services import (
     create_challenge,
     archive_challenge,
+    record_habit_log,
 )
 
-
+from .schedule import (
+    get_local_today,
+    get_period,
+)
 @extend_schema(tags=["Challenges"])
 class ChallengeViewSet(viewsets.ModelViewSet):
 
@@ -27,6 +39,7 @@ class ChallengeViewSet(viewsets.ModelViewSet):
     http_method_names = [
         "get",
         "post",
+        "put",
         "patch",
         "delete",
         "head",
@@ -58,3 +71,141 @@ class ChallengeViewSet(viewsets.ModelViewSet):
         archive_challenge(
             challenge=instance
         )
+    
+    @extend_schema(
+        summary="Get Challenge Schedule",
+        responses={200: ScheduleSerializer},
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="schedule",
+    )
+    def schedule(self, request, pk=None):
+
+        challenge = self.get_object()
+
+        today = get_local_today(challenge)
+
+        period = get_period(
+            challenge,
+            today,
+        )
+
+        data = {
+            "frequency": challenge.frequency,
+            "today": today,
+            "start_date": challenge.start_date,
+            "end_date": challenge.end_date,
+            "current_period_start": (
+                period[0] if period else None
+            ),
+            "current_period_end": (
+                period[1] if period else None
+            ),
+        }
+
+        return Response(
+            ScheduleSerializer(data).data
+        )
+
+    @extend_schema(
+        summary="Get Challenge Habit Logs",
+        responses={
+            200: HabitLogSerializer(many=True)
+        },
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="logs",
+    )
+    def logs(self, request, pk=None):
+
+        challenge = self.get_object()
+
+        logs = challenge.logs.all()
+
+        serializer = HabitLogSerializer(
+            logs,
+            many=True,
+        )
+
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Create or Update Habit Log",
+        request=HabitLogInputSerializer,
+        responses={
+            200: HabitLogSerializer,
+            201: HabitLogSerializer,
+            400: dict,
+        },
+    )
+    @action(
+        detail=True,
+        methods=["put"],
+        url_path=r"logs/(?P<log_date>\d{4}-\d{2}-\d{2})",
+    )
+    def record_log(
+        self,
+        request,
+        pk=None,
+        log_date=None,
+    ):
+
+        challenge = self.get_object()
+
+        try:
+
+            period_start = date.fromisoformat(
+                log_date
+            )
+
+        except (ValueError, TypeError):
+
+            raise ValidationError({
+                "date": "تاریخ معتبر نیست."
+            })
+
+        serializer = HabitLogInputSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        log, created = record_habit_log(
+
+            challenge=challenge,
+
+            period_start=period_start,
+
+            **serializer.validated_data,
+        )
+
+        return Response(
+
+            HabitLogSerializer(log).data,
+
+            status=(
+                status.HTTP_201_CREATED
+                if created
+                else status.HTTP_200_OK
+            ),
+        )
+    def update(self, request, *args, **kwargs):
+
+        if not kwargs.get("partial", False):
+
+            from rest_framework.exceptions import MethodNotAllowed
+
+            raise MethodNotAllowed("PUT")
+
+        return super().update(
+            request,
+            *args,
+            **kwargs,
+        )
+

@@ -4,8 +4,7 @@ from django.contrib import admin
 
 from django.contrib import admin
 
-from .models import Challenge
-
+from .models import Challenge, HabitLog
 
 @admin.register(Challenge)
 class ChallengeAdmin(admin.ModelAdmin):
@@ -38,3 +37,43 @@ class ChallengeAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+@admin.register(HabitLog)
+class HabitLogAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "id",
+        "challenge",
+        "period_start",
+        "value",
+        "performed",
+        "success",
+    )
+
+    list_filter = (
+        "success",
+        "period_start",
+    )
+
+    search_fields = (
+        "challenge__title",
+        "challenge__owner__username",
+    )
+
+    readonly_fields = (
+        "challenge",
+        "period_start",
+        "value",
+        "performed",
+        "success",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+
+        return False
