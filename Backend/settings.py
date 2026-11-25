@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     "accounts",
     "challenges.apps.ChallengesConfig",
     "notifications.apps.NotificationsConfig",
+    "groups.apps.GroupsConfig",
 ]
 
 MIDDLEWARE = [

@@ -52,5 +52,6 @@ urlpatterns = [
     ),
     path("api/", include("challenges.urls")),
     path("api/", include("notifications.urls")),
+    path("api/", include("groups.urls")),
 
 ]
