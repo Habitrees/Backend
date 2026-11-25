@@ -50,5 +50,7 @@ urlpatterns = [
         ),
         name="redoc",
     ),
+    path("api/", include("challenges.urls")),
+    path("api/", include("notifications.urls")),
 
 ]

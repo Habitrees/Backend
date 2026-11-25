@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "accounts",
     "challenges.apps.ChallengesConfig",
+    "notifications.apps.NotificationsConfig",
 ]
 
 MIDDLEWARE = [
