@@ -8,7 +8,7 @@ from .models import User
 from .phone_utils import normalize_phone
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.contrib.auth import authenticate
-
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 class RegisterSendOTPSerializer(serializers.Serializer):
 
@@ -316,3 +316,78 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 class PasswordResetConfirmResponseSerializer(serializers.Serializer):
 
     detail = serializers.CharField()
+
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+
+    username = serializers.CharField(
+        min_length=3,
+        max_length=30
+    )
+
+    class Meta:
+        model = User
+
+        fields = [
+            "id",
+            "phone",
+            "username",
+            "full_name",
+            "timezone",
+            "locale",
+            "phone_verified_at",
+            "created_at",
+        ]
+
+        read_only_fields = [
+            "id",
+            "phone",
+            "phone_verified_at",
+            "created_at",
+        ]
+
+    def validate_username(self, value):
+
+        value = User.normalize_username(value.strip())
+
+        if not 3 <= len(value) <= 30:
+            raise serializers.ValidationError(
+                "نام کاربری باید بین ۳ تا ۳۰ کاراکتر باشد."
+            )
+
+        if User.objects.filter(
+            username=value
+        ).exclude(
+            pk=self.instance.pk
+        ).exists():
+
+            raise serializers.ValidationError(
+                "این نام کاربری قبلاً انتخاب شده است."
+            )
+
+        return value
+
+    def validate_full_name(self, value):
+
+        value = value.strip()
+
+        if not value:
+            raise serializers.ValidationError(
+                "نام کامل الزامی است."
+            )
+
+        return value
+
+    def validate_timezone(self, value):
+
+        try:
+            ZoneInfo(value)
+
+        except (ZoneInfoNotFoundError, ValueError):
+
+            raise serializers.ValidationError(
+                "منطقه زمانی معتبر نیست."
+            )
+
+        return value

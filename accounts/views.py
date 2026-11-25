@@ -11,7 +11,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
@@ -39,6 +39,7 @@ from .serializers import (
     RegisterVerifyOTPSerializer,
     RegisterVerifyOTPResponseSerializer,
     RegisterCompleteSerializer,
+    ProfileSerializer,
 )
 from .services import OTPProviderError, send_otp_sms
 from .throttles import (
@@ -52,7 +53,8 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
 
 from rest_framework_simplejwt.exceptions import TokenError
-
+from rest_framework.generics import RetrieveUpdateAPIView
+from rest_framework.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -1176,3 +1178,46 @@ class PasswordResetConfirmView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+@extend_schema(tags=["Profile"])
+class ProfileView(RetrieveUpdateAPIView):
+
+    permission_classes = [IsAuthenticated]
+
+    serializer_class = ProfileSerializer
+
+    http_method_names = [
+        "get",
+        "patch",
+        "head",
+        "options",
+    ]
+
+    def get_object(self):
+
+        return self.request.user
+
+    def perform_update(self, serializer):
+
+        try:
+            with transaction.atomic():
+                serializer.save()
+
+        except IntegrityError:
+
+            username = serializer.validated_data.get(
+                "username"
+            )
+
+            if username is not None and User.objects.filter(
+                username=username
+            ).exclude(
+                pk=self.request.user.pk
+            ).exists():
+
+                raise ValidationError({
+                    "username": "این نام کاربری قبلاً انتخاب شده است."
+                })
+
+            raise

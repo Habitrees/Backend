@@ -13,6 +13,7 @@ from .views import (
     CsrfTokenView,
     CookieTokenRefreshView,
     CookieTokenBlacklistView,
+    ProfileView,
 )
 
 urlpatterns = [
@@ -75,5 +76,11 @@ urlpatterns = [
         "password-reset/confirm/",
         PasswordResetConfirmView.as_view(),
         name="password-reset-confirm",
+    ),
+        # User Profile
+    path(
+        "profile/",
+        ProfileView.as_view(),
+        name="profile",
     ),
 ]
