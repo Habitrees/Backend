@@ -9,6 +9,11 @@ from .models import (
     GroupMembership,
 )
 
+from .models import (
+    GroupChallenge,
+    GroupHabitLog,
+    GroupWarning,
+)
 class ReadOnlyAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
@@ -57,4 +62,49 @@ class GroupMembershipAdmin(ReadOnlyAdmin):
     search_fields = (
         "group__name",
         "user__username",
+    )
+
+
+@admin.register(GroupChallenge)
+class GroupChallengeAdmin(ReadOnlyAdmin):
+
+    list_display = (
+        "id",
+        "group",
+        "title",
+        "frequency",
+        "failure_policy",
+        "failure_limit",
+    )
+
+    list_filter = (
+        "frequency",
+        "failure_policy",
+    )
+
+    search_fields = (
+        "title",
+        "group__name",
+    )
+
+@admin.register(GroupHabitLog)
+class GroupHabitLogAdmin(ReadOnlyAdmin):
+
+    list_display = (
+        "challenge",
+        "membership",
+        "period_start",
+        "success",
+    )
+
+    list_filter = ("success",)
+
+@admin.register(GroupWarning)
+class GroupWarningAdmin(ReadOnlyAdmin):
+
+    list_display = (
+        "challenge",
+        "membership",
+        "consecutive_failures",
+        "created_at",
     )
