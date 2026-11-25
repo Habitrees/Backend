@@ -15,6 +15,7 @@ from .serializers import (
     HabitLogInputSerializer,
     HabitLogSerializer,
     ScheduleSerializer,
+    DashboardSerializer,
 )
 
 from .services import (
@@ -25,6 +26,7 @@ from .services import (
     recover_habit_log,
     get_plant_data,
     get_garden_data,
+    get_dashboard_data,
 )
 
 from .schedule import (
@@ -365,3 +367,32 @@ class GardenView(APIView):
         )
     
 
+@extend_schema(tags=["Dashboard"])
+class DashboardView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Get User Dashboard",
+        description=(
+            "Returns active challenges, current "
+            "performance, streaks, plant progress "
+            "and weekly performance statistics."
+        ),
+        responses={
+            200: DashboardSerializer,
+            401: dict,
+        },
+    )
+    def get(self, request):
+
+        data = get_dashboard_data(
+            user=request.user
+        )
+
+        serializer = DashboardSerializer(data)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK,
+        )

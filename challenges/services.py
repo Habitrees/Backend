@@ -361,3 +361,213 @@ def get_garden_data(user):
         "growing": growing,
         "completed": completed,
     }
+
+def calculate_success_rate(successful, total):
+
+    if total == 0:
+        return 0.0
+
+    return round(successful / total * 100, 2)
+
+
+def get_dashboard_data(user):
+
+    challenges = Challenge.objects.filter(
+        owner=user,
+    ).prefetch_related(
+        Prefetch(
+            "logs",
+            queryset=HabitLog.objects.all(),
+            to_attr="dashboard_logs",
+        )
+    )
+
+    active_challenges = []
+
+    successful_current = 0
+    failed_current = 0
+    pending_current = 0
+
+    total_growing = 0
+    total_completed = 0
+
+    weekly_total = 0
+    weekly_successful = 0
+
+    for challenge in challenges:
+
+        today = get_local_today(challenge)
+
+        logs = {
+            log.period_start: log
+            for log in challenge.dashboard_logs
+        }
+
+        successful_periods = {
+            log.period_start
+            for log in challenge.dashboard_logs
+            if log.success
+        }
+
+        # Plant and progress
+        plant = build_plant_data(
+            challenge=challenge,
+            successful_periods=successful_periods,
+            today=today,
+        )
+
+        if plant["completed"]:
+            total_completed += 1
+
+        elif plant["status"] == "growing":
+            total_growing += 1
+
+        if challenge.archived:
+            continue
+
+        # Performance statistics
+        evaluated_periods = 0
+        successful_evaluated = 0
+
+        week_start = today - timedelta(days=7)
+
+        cursor = challenge.start_date
+
+        while (
+            cursor <= today
+            and cursor <= challenge.end_date
+        ):
+
+            period_start, period_end = get_period(
+                challenge,
+                cursor,
+            )
+
+            log = logs.get(period_start)
+
+            is_closed = period_end < today
+            is_successful = (
+                log is not None and log.success
+            )
+
+            if is_closed or log is not None:
+
+                evaluated_periods += 1
+
+                if is_successful:
+                    successful_evaluated += 1
+
+            # Last seven completed local days
+            if (
+                is_closed
+                and week_start <= period_end < today
+            ):
+
+                weekly_total += 1
+
+                if is_successful:
+                    weekly_successful += 1
+
+            if period_end >= challenge.end_date:
+                break
+
+            cursor = period_end + timedelta(days=1)
+
+        # Only active challenges
+        if not (
+            challenge.start_date
+            <= today
+            <= challenge.end_date
+        ):
+            continue
+
+        current_start, current_end = get_period(
+            challenge,
+            today,
+        )
+
+        current_log = logs.get(current_start)
+
+        if current_log is None:
+
+            current_status = "pending"
+            pending_current += 1
+
+        elif current_log.success:
+
+            current_status = "success"
+            successful_current += 1
+
+        else:
+
+            current_status = "failure"
+            failed_current += 1
+
+        streak = calculate_streak(
+            challenge=challenge,
+            successful_periods=successful_periods,
+            today=today,
+        )
+
+        active_challenges.append({
+            "id": challenge.pk,
+            "title": challenge.title,
+            "description": challenge.description,
+            "kind": challenge.kind,
+            "polarity": challenge.polarity,
+            "frequency": challenge.frequency,
+            "mode": challenge.mode,
+            "target_value": challenge.target_value,
+            "unit": challenge.unit,
+            "today": today,
+            "current_period_start": current_start,
+            "current_period_end": current_end,
+            "current_status": current_status,
+            "current_log": current_log,
+            "success_rate_percent": (
+                calculate_success_rate(
+                    successful_evaluated,
+                    evaluated_periods,
+                )
+            ),
+            "streak": streak,
+            "plant": plant,
+        })
+
+    return {
+        "user": {
+            "id": user.pk,
+            "username": user.username,
+            "full_name": user.full_name,
+        },
+
+        "summary": {
+            "total_active": len(active_challenges),
+            "successful_current": successful_current,
+            "failed_current": failed_current,
+            "pending_current": pending_current,
+            "total_growing": total_growing,
+            "total_completed": total_completed,
+        },
+
+        "active_challenges": active_challenges,
+
+        "weekly_summary": {
+            "total_periods": weekly_total,
+            "successful_periods": weekly_successful,
+            "failed_periods": (
+                weekly_total - weekly_successful
+            ),
+            "success_rate_percent": (
+                calculate_success_rate(
+                    weekly_successful,
+                    weekly_total,
+                )
+            ),
+        },
+
+        "motivational_message": (
+            "هر قدم کوچک، تو را به هدفت نزدیک‌تر می‌کند."
+        ),
+    }
+

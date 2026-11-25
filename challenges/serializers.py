@@ -349,3 +349,95 @@ class GardenSerializer(serializers.Serializer):
     growing = PlantSerializer(many=True)
 
     completed = PlantSerializer(many=True)
+
+class DashboardUserSerializer(serializers.Serializer):
+
+    id = serializers.IntegerField()
+
+    username = serializers.CharField()
+
+    full_name = serializers.CharField()
+
+class DashboardSummarySerializer(serializers.Serializer):
+
+    total_active = serializers.IntegerField()
+
+    successful_current = serializers.IntegerField()
+
+    failed_current = serializers.IntegerField()
+
+    pending_current = serializers.IntegerField()
+
+    total_growing = serializers.IntegerField()
+
+    total_completed = serializers.IntegerField()
+
+class DashboardChallengeSerializer(serializers.Serializer):
+
+    id = serializers.IntegerField()
+
+    title = serializers.CharField()
+
+    description = serializers.CharField()
+
+    kind = serializers.CharField()
+
+    polarity = serializers.CharField()
+
+    frequency = serializers.CharField()
+
+    mode = serializers.CharField()
+
+    target_value = serializers.IntegerField(
+        allow_null=True
+    )
+
+    unit = serializers.CharField()
+
+    today = serializers.DateField()
+
+    current_period_start = serializers.DateField()
+
+    current_period_end = serializers.DateField()
+
+    current_status = serializers.ChoiceField(
+        choices=[
+            "pending",
+            "success",
+            "failure",
+        ]
+    )
+
+    current_log = HabitLogSerializer(
+        allow_null=True
+    )
+
+    success_rate_percent = serializers.FloatField()
+
+    streak = StreakSerializer()
+
+    plant = PlantSerializer()
+
+class DashboardWeeklySerializer(serializers.Serializer):
+
+    total_periods = serializers.IntegerField()
+
+    successful_periods = serializers.IntegerField()
+
+    failed_periods = serializers.IntegerField()
+
+    success_rate_percent = serializers.FloatField()
+
+class DashboardSerializer(serializers.Serializer):
+
+    user = DashboardUserSerializer()
+
+    summary = DashboardSummarySerializer()
+
+    active_challenges = DashboardChallengeSerializer(
+        many=True
+    )
+
+    weekly_summary = DashboardWeeklySerializer()
+
+    motivational_message = serializers.CharField()

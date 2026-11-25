@@ -607,3 +607,189 @@ class GardenAPITests(APITestCase):
         )
 from django.conf import settings
 from django.utils import timezone
+from datetime import date, timedelta
+from unittest.mock import patch
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+
+from rest_framework.test import APITestCase
+
+from .models import Challenge, HabitLog
+
+class DashboardAPITests(APITestCase):
+
+    def setUp(self):
+
+        User = get_user_model()
+
+        self.user = User.objects.create_user(
+            phone="+989121234570",
+            username="dashboard_user",
+            full_name="Dashboard User",
+            password="Test-Password-2026!",
+            timezone="UTC",
+            terms_version=settings.TERMS_VERSION,
+            terms_accepted_at=timezone.now(),
+            phone_verified_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(
+            user=self.user
+        )
+
+        self.today = date(2026, 11, 25)
+
+        self.challenge = Challenge.objects.create(
+            owner=self.user,
+            title="Daily exercise",
+            kind="time",
+            polarity="positive",
+            target_value=20,
+            unit="minutes",
+            frequency="daily",
+            mode="strict",
+            timezone="UTC",
+            start_date=(
+                self.today - timedelta(days=2)
+            ),
+            duration_days=4,
+        )
+
+        HabitLog.objects.create(
+            challenge=self.challenge,
+            period_start=(
+                self.today - timedelta(days=1)
+            ),
+            value=25,
+            success=True,
+        )
+
+        HabitLog.objects.create(
+            challenge=self.challenge,
+            period_start=self.today,
+            value=25,
+            success=True,
+        )
+
+    @patch(
+        "challenges.services.get_local_today"
+    )
+    def test_dashboard_data(self, mock_today):
+
+        mock_today.return_value = self.today
+
+        response = self.client.get(
+            "/api/dashboard/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        summary = response.data["summary"]
+
+        self.assertEqual(
+            summary["total_active"], 1
+        )
+
+        self.assertEqual(
+            summary["successful_current"], 1
+        )
+
+        self.assertEqual(
+            summary["total_growing"], 1
+        )
+
+        challenge = response.data[
+            "active_challenges"
+        ][0]
+
+        self.assertEqual(
+            challenge["streak"]["current_streak"],
+            2,
+        )
+
+        self.assertEqual(
+            challenge["plant"]["progress_percent"],
+            50.0,
+        )
+
+        self.assertEqual(
+            challenge["current_status"],
+            "success",
+        )
+
+        self.assertEqual(
+            challenge["success_rate_percent"],
+            66.67,
+        )
+
+        weekly = response.data["weekly_summary"]
+
+        self.assertEqual(
+            weekly["total_periods"], 2
+        )
+
+        self.assertEqual(
+            weekly["successful_periods"], 1
+        )
+
+        self.assertEqual(
+            weekly["success_rate_percent"], 50.0
+        )
+
+    def test_dashboard_requires_authentication(self):
+
+        self.client.force_authenticate(
+            user=None
+        )
+
+        response = self.client.get(
+            "/api/dashboard/"
+        )
+
+        self.assertEqual(
+            response.status_code, 401
+        )
+
+    def test_dashboard_only_returns_own_data(self):
+
+        other_user = (
+            get_user_model().objects.create_user(
+                phone="+989121234571",
+                username="other_dashboard_user",
+                full_name="Other User",
+                password="Test-Password-2026!",
+                timezone="UTC",
+                terms_version=settings.TERMS_VERSION,
+                terms_accepted_at=timezone.now(),
+                phone_verified_at=timezone.now(),
+            )
+        )
+
+        self.client.force_authenticate(
+            user=other_user
+        )
+
+        response = self.client.get(
+            "/api/dashboard/"
+        )
+
+        self.assertEqual(
+            response.status_code, 200
+        )
+
+        self.assertEqual(
+            response.data["summary"]["total_active"],
+            0,
+        )
+
+        self.assertEqual(
+            response.data["active_challenges"],
+            [],
+        )
+
+        self.assertEqual(
+            response.data["summary"]["total_growing"],
+            0,
+        )

@@ -1,7 +1,11 @@
 
 from rest_framework.routers import DefaultRouter
 
-from .views import ChallengeViewSet, GardenView
+from .views import (
+    ChallengeViewSet,
+    GardenView,
+    DashboardView,
+)
 from django.urls import path
 
 router = DefaultRouter()
@@ -17,5 +21,10 @@ urlpatterns = [
         "garden/",
         GardenView.as_view(),
         name="garden",
+    ),
+    path(
+        "dashboard/",
+        DashboardView.as_view(),
+        name="dashboard",
     ),
 ] + router.urls
