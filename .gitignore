@@ -517,3 +517,4 @@ $RECYCLE.BIN/
 
 # PostgreSQL database backups
 *.dump
+production.env
