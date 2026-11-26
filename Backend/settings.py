@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "drf_spectacular",
     "accounts",
+    "challenges.apps.ChallengesConfig",
 ]
 
 MIDDLEWARE = [
