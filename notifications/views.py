@@ -1,4 +1,6 @@
 
+from Backend.pagination import OptionalPagination
+
 from rest_framework import (
     serializers,
     status,
@@ -57,6 +59,7 @@ from .services import (
 )
 class ReminderViewSet(viewsets.ModelViewSet):
 
+    pagination_class = OptionalPagination
     serializer_class = ReminderSerializer
 
     permission_classes = [IsAuthenticated]

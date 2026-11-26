@@ -4,7 +4,15 @@ from django.contrib import admin
 
 from django.contrib import admin
 
-from .models import Challenge, HabitLog
+from .models import Challenge, HabitLog, PublicChallenge
+
+
+@admin.register(PublicChallenge)
+class PublicChallengeAdmin(admin.ModelAdmin):
+    list_display = ("title", "category", "difficulty", "published", "popularity")
+    list_filter = ("published", "category", "difficulty")
+    readonly_fields = ("popularity",)
+
 
 @admin.register(Challenge)
 class ChallengeAdmin(admin.ModelAdmin):

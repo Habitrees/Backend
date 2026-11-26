@@ -362,3 +362,40 @@ class GroupWarning(models.Model):
                 name="unique_group_warning_period",
             )
         ]
+
+class GroupMessage(models.Model):
+
+    group = models.ForeignKey(
+        HabitGroup,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="sent_group_messages",
+    )
+
+    text = models.TextField(
+        max_length=2000
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+
+        ordering = ["-pk"]
+
+        indexes = [
+            models.Index(
+                fields=["group", "-id"],
+                name="group_message_history_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Message {self.pk}"

@@ -9,15 +9,20 @@ from drf_spectacular.views import (
 
 from rest_framework.permissions import AllowAny
 
+from .health import live, ready
+
+handler500 = "Backend.errors.server_error"
+
 
 urlpatterns = [
+    path("health/live/", live, name="health-live"),
+    path("health/ready/", ready, name="health-ready"),
 
     # Django Admin
     path("admin/", admin.site.urls),
 
     # Authentication APIs
     path("api/auth/", include("accounts.urls")),
-    path("api/", include("challenges.urls")),
 
     # OpenAPI Schema
     path(
@@ -53,5 +58,9 @@ urlpatterns = [
     path("api/", include("challenges.urls")),
     path("api/", include("notifications.urls")),
     path("api/", include("groups.urls")),
+    path("api/reports/", include("reports.views")),
+    path("api/coach/", include("coach.views")),
+    path("api/premium/", include("premium.urls")),
+    path("api/internal/n8n/", include("Backend.workflows")),
 
 ]

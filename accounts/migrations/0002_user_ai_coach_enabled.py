@@ -1,0 +1,8 @@
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+    dependencies = [("accounts", "0001_initial")]
+    operations = [
+        migrations.AddField("user", "ai_coach_enabled", models.BooleanField(default=False)),
+    ]

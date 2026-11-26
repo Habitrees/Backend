@@ -88,4 +88,5 @@ class NotificationPreferenceSerializer(
             "push_enabled",
             "email_reports_enabled",
             "telegram_reports_enabled",
+            "smart_reports_enabled",
         ]

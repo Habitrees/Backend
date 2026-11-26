@@ -14,6 +14,7 @@ from .models import (
     GroupHabitLog,
     GroupWarning,
 )
+from .models import GroupMessage
 class ReadOnlyAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
@@ -107,4 +108,21 @@ class GroupWarningAdmin(ReadOnlyAdmin):
         "membership",
         "consecutive_failures",
         "created_at",
+    )
+
+@admin.register(GroupMessage)
+class GroupMessageAdmin(ReadOnlyAdmin):
+
+    list_display = (
+        "id",
+        "group",
+        "sender",
+        "created_at",
+    )
+
+    list_filter = ("created_at",)
+
+    search_fields = (
+        "group__name",
+        "sender__username",
     )

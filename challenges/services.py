@@ -1,12 +1,14 @@
 
 from django.db import transaction
+from django.db.models import F
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from rest_framework.exceptions import (
     ValidationError,
     NotFound,
 )
 
-from .models import Challenge, HabitLog
+from .models import Challenge, HabitLog, PublicChallenge
 
 from .schedule import (
     get_local_today,
@@ -20,6 +22,7 @@ from .streak import calculate_streak
 from django.db.models import Prefetch
 from .progress import build_plant_data
 
+
 @transaction.atomic
 def create_challenge(*, user, data):
 
@@ -31,6 +34,93 @@ def create_challenge(*, user, data):
 
     return challenge
 
+
+@transaction.atomic
+def join_public_challenge(*, user, public_challenge_id):
+
+    # 1. Lock and retrieve the published template
+    public_challenge = (
+        PublicChallenge.objects
+        .select_for_update()
+        .filter(
+            pk=public_challenge_id,
+            published=True,
+        )
+        .first()
+    )
+
+    if public_challenge is None:
+        raise NotFound(
+            "چالش عمومی موردنظر یافت نشد."
+        )
+
+    # 2. Prevent duplicate active challenges
+    existing = Challenge.objects.filter(
+        owner=user,
+        source_public_challenge=public_challenge,
+        archived=False,
+    ).first()
+
+    if existing is not None:
+        return existing, False
+
+    # 3. Get user's timezone
+    timezone_name = getattr(
+        user,
+        "timezone",
+        None,
+    ) or "UTC"
+
+    try:
+        user_timezone = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise ValidationError({
+            "timezone": "منطقه زمانی کاربر معتبر نیست."
+        })
+
+    # 4. Calculate local start date
+    start_date = timezone.localdate(
+        timezone=user_timezone
+    )
+
+    # 5. Create personal challenge
+    challenge = Challenge.objects.create(
+
+        owner=user,
+
+        source_public_challenge=public_challenge,
+
+        title=public_challenge.title,
+
+        description=public_challenge.description,
+
+        polarity=public_challenge.polarity,
+
+        kind=public_challenge.kind,
+
+        target_value=public_challenge.target_value,
+
+        unit=public_challenge.unit,
+
+        start_date=start_date,
+
+        duration_days=public_challenge.duration_days,
+
+        frequency=public_challenge.frequency,
+
+        mode=public_challenge.mode,
+
+        timezone=timezone_name,
+    )
+
+    # 6. Increment popularity atomically
+    PublicChallenge.objects.filter(
+        pk=public_challenge.pk
+    ).update(
+        popularity=F("popularity") + 1
+    )
+
+    return challenge, True
 
 @transaction.atomic
 def archive_challenge(*, challenge):
@@ -393,6 +483,8 @@ def get_dashboard_data(user):
 
     weekly_total = 0
     weekly_successful = 0
+    monthly_total = 0
+    monthly_successful = 0
 
     for challenge in challenges:
 
@@ -430,6 +522,7 @@ def get_dashboard_data(user):
         successful_evaluated = 0
 
         week_start = today - timedelta(days=7)
+        month_start = today - timedelta(days=30)
 
         cursor = challenge.start_date
 
@@ -467,6 +560,10 @@ def get_dashboard_data(user):
 
                 if is_successful:
                     weekly_successful += 1
+
+            if is_closed and month_start <= period_end < today:
+                monthly_total += 1
+                monthly_successful += int(is_successful)
 
             if period_end >= challenge.end_date:
                 break
@@ -551,6 +648,12 @@ def get_dashboard_data(user):
         },
 
         "active_challenges": active_challenges,
+        "monthly_summary": {
+            "total_periods": monthly_total,
+            "successful_periods": monthly_successful,
+            "failed_periods": monthly_total - monthly_successful,
+            "success_rate_percent": calculate_success_rate(monthly_successful, monthly_total),
+        },
 
         "weekly_summary": {
             "total_periods": weekly_total,

@@ -62,50 +62,39 @@ def send_otp_sms(phone_e164, code):
         )
         )
 
-        # موقتاً برای عیب‌یابی، پاسخ Ferzz را ثبت می‌کنیم
-        logger.info(
-            "Ferzz response | Status: %s | Body: %s",
-            response.status_code,
-            response.text[:1000]
-        )
-
         response.raise_for_status()
 
-    except requests.HTTPError as exc:
+    except requests.HTTPError:
 
-        logger.error(
-            "Ferzz HTTP Error | Status: %s | Body: %s",
-            response.status_code,
-            response.text[:2000]
-        )
+        logger.error("otp_provider_http_error status=%s", response.status_code)
 
         raise OTPProviderError(
             "Ferzz returned an HTTP error"
-        ) from exc
-    except requests.Timeout as exc:
+        ) from None
+    except requests.Timeout:
 
-        logger.exception("Ferzz request timed out")
+        logger.error("Ferzz request timed out")
 
         raise OTPProviderError(
             "Ferzz timeout"
-        ) from exc
-    except requests.ConnectionError as exc:
+        ) from None
+    except requests.ConnectionError:
 
-        logger.exception("Ferzz connection failed")
+        logger.error("Ferzz connection failed")
 
         raise OTPProviderError(
             "Ferzz connection failed"
-        ) from exc
+        ) from None
     except requests.RequestException as exc:
 
-        logger.exception(
+        logger.error(
             "Ferzz request failed: %s",
             type(exc).__name__
         )
 
         raise OTPProviderError(
             "Ferzz request failed"
-        ) from exc
+        ) from None
 
     return response
 

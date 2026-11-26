@@ -29,3 +29,8 @@ djangorestframework-simplejwt==5.5.1
 requests>=2.32,<3
 phonenumbers>=9,<10
 argon2-cffi==25.1.0
+channels[daphne]>=4.3,<5
+channels-redis>=4.2,<5
+reportlab>=4.4,<5
+arabic-reshaper>=3,<4
+python-bidi>=0.6,<1

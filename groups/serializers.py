@@ -12,6 +12,7 @@ from .models import (
     GroupHabitLog,
     GroupWarning,
 )
+from .models import GroupMessage
 
 class GroupSerializer(serializers.ModelSerializer):
 
@@ -346,5 +347,68 @@ class PolicyResultSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
 
     warning_id = serializers.IntegerField(
+        allow_null=True
+    )
+
+
+class GroupMessageSerializer(
+    serializers.ModelSerializer
+):
+
+    username = serializers.CharField(
+        source="sender.username",
+        read_only=True,
+        allow_null=True,
+    )
+
+    full_name = serializers.CharField(
+        source="sender.full_name",
+        read_only=True,
+        allow_null=True,
+    )
+
+    class Meta:
+
+        model = GroupMessage
+
+        fields = [
+            "id",
+            "group",
+            "sender",
+            "username",
+            "full_name",
+            "text",
+            "created_at",
+        ]
+
+        read_only_fields = fields
+
+class MessageHistoryQuerySerializer(
+    serializers.Serializer
+):
+
+    before_id = serializers.IntegerField(
+        min_value=1,
+        max_value=9223372036854775807,
+        required=False,
+    )
+
+    limit = serializers.IntegerField(
+        min_value=1,
+        max_value=100,
+        default=50,
+    )
+
+class MessageHistorySerializer(
+    serializers.Serializer
+):
+
+    messages = GroupMessageSerializer(
+        many=True
+    )
+
+    has_more = serializers.BooleanField()
+
+    next_before_id = serializers.IntegerField(
         allow_null=True
     )

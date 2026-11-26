@@ -338,6 +338,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "locale",
             "phone_verified_at",
             "created_at",
+            "ai_coach_enabled",
         ]
 
         read_only_fields = [

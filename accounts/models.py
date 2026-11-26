@@ -120,6 +120,8 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     terms_accepted_at = models.DateTimeField()
 
+    ai_coach_enabled = models.BooleanField(default=False)
+
     is_active = models.BooleanField(default=True)
 
     is_staff = models.BooleanField(default=False)

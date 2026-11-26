@@ -1,12 +1,14 @@
 from datetime import date
 
+from Backend.pagination import OptionalPagination
+
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from .models import Challenge
 
@@ -43,10 +45,26 @@ from .serializers import (
     GardenSerializer,
 )
 from rest_framework.views import APIView
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+    IsAdminUser,
+)
+
+from .models import PublicChallenge
+
+from .serializers import (
+    PublicChallengeSerializer,
+    PublicChallengeFilterSerializer,
+)
+
+from .services import join_public_challenge
 
 @extend_schema(tags=["Challenges"])
+@extend_schema_view(update=extend_schema(exclude=True))
 class ChallengeViewSet(viewsets.ModelViewSet):
 
+    pagination_class = OptionalPagination
     serializer_class = ChallengeSerializer
 
     permission_classes = [
@@ -136,6 +154,7 @@ class ChallengeViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["get"],
         url_path="logs",
+        pagination_class=None,
     )
     def logs(self, request, pk=None):
 
@@ -390,6 +409,17 @@ class DashboardView(APIView):
             user=request.user
         )
 
+        from groups.models import HabitGroup, GroupMembership
+
+        data["active_groups"] = HabitGroup.objects.filter(
+            pk__in=GroupMembership.objects.filter(user=request.user).values("group_id")
+        ).order_by("pk").values("id", "name", "visibility")
+        joined = Challenge.objects.filter(
+            owner=request.user, archived=False, source_public_challenge__isnull=False,
+        ).values("source_public_challenge_id")
+        data["recommended_challenges"] = PublicChallenge.objects.filter(
+            published=True,
+        ).exclude(pk__in=joined).order_by("-popularity", "-pk")[:5]
         serializer = DashboardSerializer(data)
 
         return Response(

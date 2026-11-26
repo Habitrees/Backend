@@ -1,6 +1,8 @@
 
 from datetime import date
 
+from Backend.pagination import OptionalPagination
+
 from rest_framework import (
     mixins,
     status,
@@ -77,6 +79,7 @@ class GroupChallengeViewSet(
 
     queryset = GroupChallenge.objects.none()
 
+    pagination_class = OptionalPagination
     serializer_class = GroupChallengeSerializer
 
     permission_classes = [IsAuthenticated]
@@ -197,6 +200,7 @@ class GroupChallengeViewSet(
         detail=True,
         methods=["get"],
         url_path="logs",
+        pagination_class=None,
     )
     def logs(
         self, request, pk=None, group_id=None
@@ -292,6 +296,7 @@ class GroupChallengeViewSet(
         detail=True,
         methods=["get"],
         url_path="progress",
+        pagination_class=None,
     )
     def progress(
         self, request, pk=None, group_id=None
@@ -360,6 +365,7 @@ class GroupChallengeViewSet(
         detail=True,
         methods=["get"],
         url_path="warnings",
+        pagination_class=None,
     )
     def warnings(
         self, request, pk=None, group_id=None

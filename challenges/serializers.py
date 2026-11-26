@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import Challenge, HabitLog
+from .models import Challenge, HabitLog, PublicChallenge
 
 
 class ChallengeSerializer(serializers.ModelSerializer):
@@ -48,7 +48,7 @@ class ChallengeSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
-    def get_status(self, obj):
+    def get_status(self, obj) -> str:
 
         if obj.archived:
             return "archived"
@@ -228,6 +228,167 @@ class ChallengeSerializer(serializers.ModelSerializer):
 
         return attrs
 
+
+class PublicChallengeSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = PublicChallenge
+
+        fields = [
+            "id",
+            "title",
+            "description",
+            "category",
+            "difficulty",
+            "kind",
+            "polarity",
+            "target_value",
+            "unit",
+            "duration_days",
+            "frequency",
+            "mode",
+            "published",
+            "popularity",
+            "created_at",
+            "updated_at",
+        ]
+
+        read_only_fields = [
+            "id",
+            "popularity",
+            "created_at",
+            "updated_at",
+        ]
+
+    def validate(self, attrs):
+
+        instance = self.instance
+
+        def get_value(field, default=None):
+            if field in attrs:
+                return attrs[field]
+
+            if instance is not None:
+                return getattr(instance, field)
+
+            return default
+
+        kind = get_value("kind")
+
+        polarity = get_value(
+            "polarity",
+            Challenge.Polarity.POSITIVE,
+        )
+
+        target = get_value("target_value")
+        unit = get_value("unit", "")
+
+        mode = get_value(
+            "mode",
+            Challenge.Mode.STRICT,
+        )
+
+        frequency = get_value(
+            "frequency",
+            Challenge.Frequency.DAILY,
+        )
+
+        # Binary validation
+        if kind == Challenge.Kind.BINARY:
+
+            if target is not None:
+                raise serializers.ValidationError({
+                    "target_value":
+                        "Binary challenges cannot have a numeric target."
+                })
+
+            if unit:
+                raise serializers.ValidationError({
+                    "unit":
+                        "Binary challenges cannot have a measurement unit."
+                })
+
+        else:
+
+            if target is None:
+                raise serializers.ValidationError({
+                    "target_value":
+                        "A numeric target is required."
+                })
+
+            if (
+                polarity == Challenge.Polarity.POSITIVE
+                and target == 0
+            ):
+                raise serializers.ValidationError({
+                    "target_value":
+                        "Target must be greater than zero."
+                })
+
+            if kind == Challenge.Kind.TIME:
+
+                if unit != "minutes":
+                    raise serializers.ValidationError({
+                        "unit":
+                            "Time challenges must use minutes."
+                    })
+
+            elif not unit:
+                raise serializers.ValidationError({
+                    "unit":
+                        "A measurement unit is required."
+                })
+
+        # Flexible mode validation
+        if (
+            mode == Challenge.Mode.FLEXIBLE
+            and frequency != Challenge.Frequency.DAILY
+        ):
+            raise serializers.ValidationError({
+                "mode":
+                    "Flexible mode is only available for daily challenges."
+            })
+
+        return attrs
+
+class PublicChallengeFilterSerializer(serializers.Serializer):
+
+    category = serializers.SlugField(
+        required=False
+    )
+
+    difficulty = serializers.ChoiceField(
+        choices=PublicChallenge.Difficulty.choices,
+        required=False,
+    )
+
+    duration_days = serializers.IntegerField(
+        min_value=1,
+        max_value=366,
+        required=False,
+    )
+
+    min_duration_days = serializers.IntegerField(
+        min_value=1,
+        max_value=366,
+        required=False,
+    )
+
+    max_duration_days = serializers.IntegerField(
+        min_value=1,
+        max_value=366,
+        required=False,
+    )
+
+    ordering = serializers.ChoiceField(
+        choices=[
+            "popular",
+            "newest",
+            "duration_asc",
+            "duration_desc",
+        ],
+        default="popular",
+    )
 
 class HabitLogInputSerializer(serializers.Serializer):
 
@@ -428,6 +589,12 @@ class DashboardWeeklySerializer(serializers.Serializer):
 
     success_rate_percent = serializers.FloatField()
 
+class DashboardGroupSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    visibility = serializers.CharField()
+
+
 class DashboardSerializer(serializers.Serializer):
 
     user = DashboardUserSerializer()
@@ -439,5 +606,8 @@ class DashboardSerializer(serializers.Serializer):
     )
 
     weekly_summary = DashboardWeeklySerializer()
+    monthly_summary = DashboardWeeklySerializer()
+    active_groups = DashboardGroupSerializer(many=True)
+    recommended_challenges = PublicChallengeSerializer(many=True)
 
     motivational_message = serializers.CharField()

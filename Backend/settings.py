@@ -22,11 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# SECRET_KEY = 'django-insecure-pmm&l%gmrn)iq)sq@**@fiv2&jqd%%9krgw2#^$e&ggnrj6)6h'
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "unsafe-local-development-key",
-)
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG = True
@@ -34,6 +30,10 @@ SECRET_KEY = os.getenv(
 # ALLOWED_HOSTS = []
 
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
+if not SECRET_KEY and DEBUG:
+    from django.core.management.utils import get_random_secret_key
+
+    SECRET_KEY = get_random_secret_key()
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -49,6 +49,8 @@ ALLOWED_HOSTS = [
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
+    "channels",
     "rest_framework_simplejwt.token_blacklist",
     'django.contrib.admin',
     'django.contrib.auth',
@@ -63,6 +65,10 @@ INSTALLED_APPS = [
     "challenges.apps.ChallengesConfig",
     "notifications.apps.NotificationsConfig",
     "groups.apps.GroupsConfig",
+    "reports",
+    "coach",
+    "premium",
+    
 ]
 
 MIDDLEWARE = [
@@ -95,6 +101,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'Backend.wsgi.application'
+ASGI_APPLICATION = "Backend.asgi.application"
 
 
 # Database
@@ -115,6 +122,7 @@ DATABASES = {
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
         "HOST": os.getenv("DB_HOST", "db"),
         "PORT": os.getenv("DB_PORT", "5432"),
+        "OPTIONS": {"connect_timeout": 3},
     }
 }
 
@@ -176,11 +184,6 @@ STATIC_URL = 'static/'
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
 
 
 
@@ -214,6 +217,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 REST_FRAMEWORK = {
+    "EXCEPTION_HANDLER": "Backend.errors.api_exception_handler",
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
@@ -231,11 +235,14 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
     "anon": "100/hour",
     "user": "1000/hour",
+    "workflow": "1200/hour",
 
     # Login protection
     "login": "5/minute",
     "password_reset_send": "5/hour",
     "password_reset": "5/minute",
+    "report_email": "3/hour",
+    "report_email_confirm": "10/hour",
     },
 
 
@@ -359,4 +366,69 @@ PASSWORD_RESET_TOKEN_TTL_SECONDS = int(
         "PASSWORD_RESET_TOKEN_TTL_SECONDS",
         "300"
     )
+)
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+
+HTTPS_ENABLED = not DEBUG and os.getenv("DJANGO_HTTPS_ENABLED", "0") == "1"
+SECURE_SSL_REDIRECT = HTTPS_ENABLED
+SECURE_HSTS_SECONDS = 31536000 if HTTPS_ENABLED else 0
+SESSION_COOKIE_SECURE = HTTPS_ENABLED
+CSRF_COOKIE_SECURE = HTTPS_ENABLED
+if HTTPS_ENABLED and os.getenv("DJANGO_TRUST_PROXY_HTTPS", "0") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": (
+            "channels_redis.core.RedisChannelLayer"
+        ),
+        "CONFIG": {
+            "hosts": [REDIS_URL],
+        },
+    },
+}
+
+N8N_REPORT_TOKEN = os.getenv("N8N_REPORT_TOKEN", "")
+N8N_COACH_TOKEN = os.getenv("N8N_COACH_TOKEN", "")
+REPORT_PDF_FONT = os.getenv("REPORT_PDF_FONT", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+
+WEBSOCKET_ALLOWED_ORIGINS = list(set(
+    CORS_ALLOWED_ORIGINS + [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+))
+
+REPORT_EMAIL_VERIFICATION_ENABLED = (
+    os.getenv(
+        "REPORT_EMAIL_VERIFICATION_ENABLED",
+        "0",
+    ) == "1"
+)
+
+MAILERS = {
+    "default": {
+        "BACKEND": "django.core.mail.backends.console.EmailBackend",
+    },
+}
+
+if REPORT_EMAIL_VERIFICATION_ENABLED:
+
+    MAILERS = {
+        "default": {
+            "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "OPTIONS": {
+                "host": os.getenv("EMAIL_HOST", ""),
+                "port": int(os.getenv("EMAIL_PORT", "587")),
+                "username": os.getenv("EMAIL_HOST_USER", ""),
+                "password": os.getenv("EMAIL_HOST_PASSWORD", ""),
+                "use_tls": os.getenv("EMAIL_USE_TLS", "1") == "1",
+                "timeout": 10,
+            },
+        },
+    }
+
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL",
+    "noreply@example.com",
 )

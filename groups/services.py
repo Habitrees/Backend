@@ -12,6 +12,9 @@ from .models import (
     HabitGroup,
     GroupMembership,
 )
+from .chat_events import (
+    revoke_membership_connections,
+)
 
 Role = GroupMembership.Role
 
@@ -270,7 +273,13 @@ def remove_group_member(*, actor, group, user_id):
             "فقط مالک می‌تواند مدیر گروه را حذف کند."
         )
 
+    membership_id = target.pk
+
     target.delete()
+
+    revoke_membership_connections(
+        membership_id
+    )
 
 @transaction.atomic
 def leave_group(*, user, group):
@@ -285,4 +294,10 @@ def leave_group(*, user, group):
                 "مالک گروه نمی‌تواند از گروه خارج شود."
         })
 
+    membership_id = membership.pk
+
     membership.delete()
+
+    revoke_membership_connections(
+        membership_id
+    )

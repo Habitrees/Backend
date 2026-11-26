@@ -1,4 +1,6 @@
 
+from Backend.pagination import OptionalPagination
+
 from rest_framework import (
     mixins,
     status,
@@ -39,6 +41,14 @@ from .services import (
     remove_group_member,
     leave_group,
 )
+from .chat_services import (
+    get_message_history,
+)
+
+from .serializers import (
+    MessageHistoryQuerySerializer,
+    MessageHistorySerializer,
+)
 
 @extend_schema(tags=["Groups"])
 class GroupViewSet(
@@ -49,6 +59,7 @@ class GroupViewSet(
     viewsets.GenericViewSet,
 ):
 
+    pagination_class = OptionalPagination
     serializer_class = GroupSerializer
 
     permission_classes = [IsAuthenticated]
@@ -203,6 +214,7 @@ class GroupViewSet(
         detail=True,
         methods=["get"],
         url_path="members",
+        pagination_class=None,
     )
     def members(self, request, pk=None):
 
@@ -338,4 +350,42 @@ class GroupViewSet(
 
         return Response(
             status=status.HTTP_204_NO_CONTENT
+        )
+
+
+    @extend_schema(
+        summary="Get Group Chat History",
+        parameters=[
+            MessageHistoryQuerySerializer,
+        ],
+        responses={
+            200: MessageHistorySerializer,
+            404: dict,
+        },
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="messages",
+    )
+    def messages(self, request, pk=None):
+
+        group = self.get_object()
+
+        serializer = MessageHistoryQuerySerializer(
+            data=request.query_params
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        data = get_message_history(
+            user=request.user,
+            group=group,
+            **serializer.validated_data,
+        )
+
+        return Response(
+            MessageHistorySerializer(data).data
         )

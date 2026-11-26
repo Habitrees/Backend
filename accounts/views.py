@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -22,7 +22,7 @@ from rest_framework_simplejwt.token_blacklist.models import (
     OutstandingToken,
 )
 
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from drf_spectacular.utils import extend_schema, inline_serializer, OpenApiResponse
 
 from .models import OTPChallenge, User
 from .serializers import (
@@ -110,6 +110,9 @@ class CsrfTokenView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(responses=inline_serializer("CsrfToken", {
+        "csrfToken": serializers.CharField(),
+    }))
     def get(self, request):
 
         return Response(
@@ -127,6 +130,9 @@ class CookieTokenRefreshView(APIView):
     authentication_classes = []
     throttle_classes = [AnonRateThrottle]
 
+    @extend_schema(request=None, responses={200: inline_serializer("AccessRefresh", {
+        "access": serializers.CharField(), "detail": serializers.CharField(),
+    }), 401: OpenApiResponse(description="Invalid or missing refresh cookie.")})
     def post(self, request):
 
         raw_refresh = request.COOKIES.get(
@@ -193,6 +199,9 @@ class CookieTokenBlacklistView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(request=None, responses=inline_serializer("Logout", {
+        "detail": serializers.CharField(),
+    }))
     def post(self, request):
 
         raw_refresh = request.COOKIES.get(

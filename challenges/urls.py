@@ -7,6 +7,7 @@ from .views import (
     DashboardView,
 )
 from django.urls import path
+from .public_views import PublicChallengeViewSet
 
 router = DefaultRouter()
 
@@ -15,6 +16,8 @@ router.register(
     ChallengeViewSet,
     basename="challenge",
 )
+
+router.register("public-challenges", PublicChallengeViewSet, basename="public-challenge")
 
 urlpatterns = [
     path(
