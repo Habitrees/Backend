@@ -80,7 +80,7 @@ jobs:
 
       - name: Create temporary environment for Docker Compose
         run: |
-          cat > .env <<'EOF'
+          cat > production.env <<'EOF'
           DJANGO_SECRET_KEY=ci-only-secret-key
           DJANGO_DEBUG=0
           DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
